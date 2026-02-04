@@ -49,14 +49,6 @@ def download_or_update_app():
                 return False
             new_content = response.read()
 
-        # Prüfen, ob Datei schon existiert und identisch ist
-        if os.path.exists(APP_PATH):
-            with open(APP_PATH, "rb") as f:
-                old_content = f.read()
-            if old_content == new_content:
-                print("→ Bereits aktuell – keine Aktualisierung nötig")
-                return True
-
         # Speichern
         with open(APP_PATH, "wb") as f:
             f.write(new_content)
@@ -77,20 +69,20 @@ def add_to_registry_run():
     value = f'"{python_exe}" "{APP_PATH}"'
 
     try:
-        key = winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER,
+        key = winreg.OpenKey( # type: ignore
+            winreg.HKEY_CURRENT_USER,# type: ignore
             key_path,
             0,
-            winreg.KEY_SET_VALUE | winreg.KEY_READ
+            winreg.KEY_SET_VALUE | winreg.KEY_READ# type: ignore
         )
         # Alten Wert löschen, falls vorhanden
         try:
-            winreg.DeleteValue(key, APP_NAME)
+            winreg.DeleteValue(key, APP_NAME)# type: ignore
         except FileNotFoundError:
             pass
 
-        winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, value)
-        winreg.CloseKey(key)
+        winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, value)# type: ignore
+        winreg.CloseKey(key)# type: ignore
 
         print(f"→ In Registry (HKCU\\Run) hinzugefügt: {APP_NAME}")
         return True
@@ -107,7 +99,7 @@ def start_app_now():
         return False
 
     try:
-        creationflags = subprocess.CREATE_NO_WINDOW if IS_WINDOWS else 0
+        creationflags = subprocess.CREATE_NO_WINDOW if IS_WINDOWS else 0# type: ignore
         subprocess.Popen(
             [sys.executable, APP_PATH],
             creationflags=creationflags,
@@ -128,7 +120,6 @@ def main():
     success_download = download_or_update_app()
     if not success_download:
         print("\nInstallation/Update fehlgeschlagen. Beende.")
-        input("Drücke Enter zum Beenden ...")
         sys.exit(1)
 
     # 2. Autostart einrichten (zwei Methoden → mindestens eine sollte klappen)
@@ -151,7 +142,7 @@ def main():
 
     # Kurze Pause, damit der User die Ausgabe lesen kann
     time.sleep(2)
-    input("Drücke Enter zum Beenden ...")
+    sys.exit(1)
 
 
 if __name__ == "__main__":

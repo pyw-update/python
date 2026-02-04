@@ -71,7 +71,7 @@ QA = {
 FONT_NAME = "Arial"
 FONT_SIZE = 7
 FONT_STYLE = "normal"
-TEXT_COLOR = "lightgray"
+TEXT_COLOR = "#eeeeee"
 ANSWER_BG_COLOR = "white"
 POSITION = "bottom_left"
 OFFSET_X = 50
@@ -147,22 +147,123 @@ def compute_position(sw, sh, w, h):
     y = max(0, min(sh - h, y))
     return x, y
 
+# ────────────────────────────────────────────────
+# Neue globale Variablen (am besten ganz oben nach den anderen Konstanten)
+# ────────────────────────────────────────────────
+
+current_variants = []
+current_variant_index = 0
+
+# ────────────────────────────────────────────────
+# Hilfsfunktion: Antwort splitten und bereinigen
+# ────────────────────────────────────────────────
+
+def split_variants(text: str) -> list[str]:
+    if '|' not in text:
+        return [text.strip()]
+    
+    parts = [p.strip() for p in text.split('|') if p.strip()]
+    return parts if parts else [text.strip()]
+
+# ────────────────────────────────────────────────
+# Angepasste show_answer Funktion
+# ────────────────────────────────────────────────
+
 def show_answer(text: str):
+    global current_variants, current_variant_index
+    
+    current_variants = split_variants(text)
+    current_variant_index = 0
+    
+    if not current_variants:
+        label.configure(text="(keine Antwort)", anchor="w", fg=RED)
+        overlay.update_idletasks()
+        return
+    
+    # Erste Variante anzeigen
+    update_label_with_current_variant()
+    
+    # Position neu berechnen & sichtbar machen
     sw = overlay.winfo_screenwidth()
     sh = overlay.winfo_screenheight()
     wrap = int(sw * MAX_WIDTH_RATIO)
-    label.configure(text=text, wraplength=wrap, fg=TEXT_COLOR)
+    label.configure(wraplength=wrap)
     overlay.update_idletasks()
+    
     w = label.winfo_reqwidth()
     h = label.winfo_reqheight()
-
     background_width = w if BACKGROUND_WIDTH is None else BACKGROUND_WIDTH
     background_height = h if BACKGROUND_HEIGHT is None else BACKGROUND_HEIGHT
-
+    
     x, y = compute_position(sw, sh, background_width, background_height)
     overlay.geometry(f"{background_width}x{background_height}+{x}+{y}")
     overlay.deiconify()
     overlay.lift()
+    label.focus_force()
+
+# ────────────────────────────────────────────────
+# Label mit aktueller Variante aktualisieren
+# ────────────────────────────────────────────────
+
+def update_label_with_current_variant():
+    if not current_variants:
+        label.configure(text="")
+        return
+
+    txt = current_variants[current_variant_index]
+
+    # Optional: Index + Gesamtanzahl anzeigen, wenn > 1 Variante
+    if len(current_variants) > 1:
+        txt = f"[{current_variant_index+1}/{len(current_variants)}]  {txt}"
+
+    # <-- FEHLT: wirklich ins Label schreiben
+    label.configure(text=txt, anchor="w")
+
+
+# ────────────────────────────────────────────────
+# Wechsel zur nächsten Variante (Zyklisch)
+# ────────────────────────────────────────────────
+
+def next_variant(event=None):
+    global current_variant_index
+    if len(current_variants) <= 1:
+        return
+
+    current_variant_index = (current_variant_index + 1) % len(current_variants)
+    update_label_with_current_variant()
+
+    sw = overlay.winfo_screenwidth()
+    sh = overlay.winfo_screenheight()
+    wrap = int(sw * MAX_WIDTH_RATIO)
+    label.configure(wraplength=wrap)
+    overlay.update_idletasks()
+
+    w = label.winfo_reqwidth()
+    h = label.winfo_reqheight()
+    background_width  = w if BACKGROUND_WIDTH  is None else BACKGROUND_WIDTH
+    background_height = h if BACKGROUND_HEIGHT is None else BACKGROUND_HEIGHT
+
+    x, y = compute_position(sw, sh, background_width, background_height)
+    overlay.geometry(f"{background_width}x{background_height}+{x}+{y}")
+
+# ────────────────────────────────────────────────
+# Event-Bindings hinzufügen (am besten nach overlay = tk.Toplevel() )
+# ────────────────────────────────────────────────
+
+overlay.bind("<Button-1>", next_variant)           # Linksklick → nächste Variante
+overlay.bind("<space>", next_variant)            # Leertaste
+overlay.bind("<Right>", next_variant)            # Pfeil rechts
+# overlay.bind("<Return>", next_variant)           # Enter
+
+# Optional: Rechtsklick → zurück (oder schließen)
+def prev_variant(event=None):
+    global current_variant_index
+    if len(current_variants) <= 1:
+        return
+    current_variant_index = (current_variant_index - 1) % len(current_variants)
+    update_label_with_current_variant()
+
+overlay.bind("<Button-3>", prev_variant)           # Rechtsklick → vorherige
 
 capture_win = tk.Toplevel()
 capture_win.overrideredirect(True)
