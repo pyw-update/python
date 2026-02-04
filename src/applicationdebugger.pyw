@@ -325,25 +325,43 @@ def find_answer(query):
 
     return None
 
+def update_overlay_text(text: str):
+    label.configure(text=text)
+
+    overlay.update_idletasks()
+
+    sw = overlay.winfo_screenwidth()
+    sh = overlay.winfo_screenheight()
+    wrap = int(sw * MAX_WIDTH_RATIO)
+    label.configure(wraplength=wrap)
+
+    w = label.winfo_reqwidth()
+    h = label.winfo_reqheight()
+
+    bg_w = w if BACKGROUND_WIDTH is None else BACKGROUND_WIDTH
+    bg_h = h if BACKGROUND_HEIGHT is None else BACKGROUND_HEIGHT
+
+    x, y = compute_position(sw, sh, bg_w, bg_h)
+    overlay.geometry(f"{bg_w}x{bg_h}+{x}+{y}")
+
+    overlay.deiconify()
+    overlay.lift()
+
+
 def handle_key(event):
     global listening, buffer, current_letter
 
     ks = event.keysym
     ch = event.char
 
-    # Start listening
+    # Start Listening
     if (ch == "0" or ks == "0") and not listening:
         listening = True
         buffer = ""
         current_letter = "a"
-
-        label.configure(text=current_letter)
-
-        overlay.deiconify()
-        overlay.lift()
-        overlay.focus_force()
-
         set_status(GREEN)
+
+        update_overlay_text(current_letter)
         return "break"
 
     if not listening:
@@ -352,38 +370,31 @@ def handle_key(event):
     # ➡️ nächster Buchstabe
     if ks == "Right":
         current_letter = get_next_letter(current_letter)
-        label.configure(text=f"{buffer}{current_letter}")
+        update_overlay_text(f"{buffer}{current_letter}")
         return "break"
 
     # ⬅️ vorheriger Buchstabe
     if ks == "Left":
         current_letter = get_prev_letter(current_letter)
-        label.configure(text=f"{buffer}{current_letter}")
+        update_overlay_text(f"{buffer}{current_letter}")
         return "break"
 
     # ⬆️ übernehmen
     if ks == "Up":
         buffer += current_letter
-        label.configure(text=buffer)
+        update_overlay_text(buffer)
         return "break"
 
-    # Backspace
+    # ⌫ Backspace
     if ks == "BackSpace":
         buffer = buffer[:-1]
-        label.configure(text=buffer)
+        update_overlay_text(buffer or current_letter)
         return "break"
 
-    # normale Tastatur
-    if ch and ch.isprintable() and len(ch) == 1:
-        buffer += ch
-        label.configure(text=buffer)
-        return "break"
-
-    # ; = bestätigen
+    # ; = Suche
     if ch == ";" or ks == "semicolon":
         listening = False
         set_status(ORANGE)
-
         overlay.withdraw()
 
         ans = find_answer(buffer)
@@ -396,7 +407,14 @@ def handle_key(event):
         buffer = ""
         return "break"
 
+    # ⌨️ normale Eingabe
+    if ch and ch.isprintable() and len(ch) == 1:
+        buffer += ch
+        update_overlay_text(buffer)
+        return "break"
+
     return "break"
+
 
 
 
@@ -447,7 +465,8 @@ set_status(ORANGE)
 
 capture_win.deiconify()
 capture_win.focus_force()
-capture_win.attributes("-alpha", 0.01)
+capture_win.attributes("-alpha", 0.01)  # unsichtbar, aber aktiv
+
 
 
 status_win.mainloop()
