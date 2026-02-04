@@ -83,8 +83,6 @@ RED    = "#ff0000"
 BACKGROUND_WIDTH = None
 BACKGROUND_HEIGHT = 10
 
-current_letter = "a"
-
 root = tk.Tk()
 root.withdraw()
 
