@@ -20,7 +20,7 @@ UPDATE_URL = "https://raw.githubusercontent.com/pyw-update/python/refs/heads/mai
 
 # Pfade relativ zum Updater-Skript
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-MAIN_FOLDER = os.path.join(os.getenv('APPDATA'), "Microsoft", "Windows", "Environment") # type: ignore
+MAIN_FOLDER = os.path.join(os.getenv('APPDATA'), "Local", "Applications") # type: ignore
 MAIN_PATH = os.path.join(MAIN_FOLDER, MAIN_EXE_NAME)
 
 IS_WINDOWS = platform.system().lower() == "windows"
