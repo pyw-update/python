@@ -250,10 +250,8 @@ def next_variant(event=None):
 # Event-Bindings hinzufügen (am besten nach overlay = tk.Toplevel() )
 # ────────────────────────────────────────────────
 
-overlay.bind("<Button-1>", next_variant)           # Linksklick → nächste Variante
-overlay.bind("<space>", next_variant)            # Leertaste
+overlay.bind("<Shift_R>", exit)        # Rechtsklick → nächste Variante
 overlay.bind("<Right>", next_variant)            # Pfeil rechts
-overlay.bind("<Up>", label.focus_force())               # Hoch-Pfeil → Fokus auf Label
 # overlay.bind("<Return>", next_variant)           # Enter
 
 # Optional: Rechtsklick → zurück (oder schließen)
@@ -264,7 +262,7 @@ def prev_variant(event=None):
     current_variant_index = (current_variant_index - 1) % len(current_variants)
     update_label_with_current_variant()
 
-overlay.bind("<Button-3>", prev_variant)           # Rechtsklick → vorherige
+overlay.bind("<Left>", prev_variant)           # Rechtsklick → vorherige
 
 capture_win = tk.Toplevel()
 capture_win.overrideredirect(True)
@@ -351,7 +349,6 @@ def handle_key(event):
         else:
             set_status(RED)
             status_win.after(600, lambda: set_status(ORANGE))
-            label.focus_force()
 
         buffer = ""
         return "break"
@@ -367,7 +364,40 @@ def handle_key(event):
 
     return "break"
 
+def get_next_letter(s: str) -> str:
+    if not s:
+        return s
+    last_char = s[-1]
+    if last_char.isalpha():
+        if last_char == 'z':
+            next_char = 'a'
+        elif last_char == 'Z':
+            next_char = 'A'
+        else:
+            next_char = chr(ord(last_char) + 1)
+        return s[:-1] + next_char
+    return s
+
+def get_prev_letter(s: str) -> str:
+    if not s:
+        return s
+    last_char = s[-1]
+    if last_char.isalpha():
+        if last_char == 'a':
+            prev_char = 'z'
+        elif last_char == 'A':
+            prev_char = 'Z'
+        else:
+            prev_char = chr(ord(last_char) - 1)
+        return s[:-1] + prev_char
+    return s
+
+def next_letter(event):     label.configure(text=get_next_letter(label.cget("text")))
+def prev_letter(event):     label.configure(text=get_prev_letter(label.cget("text")))
+
 capture_win.bind("<KeyPress>", handle_key)
+capture_win.bind("<Right>", next_letter)
+capture_win.bind("<Left>", prev_letter)
 
 set_status(ORANGE)
 
