@@ -347,7 +347,6 @@ def update_overlay_text(text: str):
     overlay.deiconify()
     overlay.lift()
 
-
 def handle_key(event):
     global listening, buffer, current_letter
     
@@ -457,8 +456,6 @@ def next_letter(event):
 def prev_letter(event):     
     label.configure(text=get_prev_letter(label.cget("text")))
     overlay.update_idletasks()
-
-
 
 capture_win.bind("<Right>", next_letter)
 capture_win.bind("<Left>", prev_letter)
