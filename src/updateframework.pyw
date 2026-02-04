@@ -16,6 +16,7 @@ import platform
 # KONFIGURATION
 APP_NAME       = "ApplicationDebugger"  # Name deiner Anwendung
 FILE_NAME      = "applicationdebugger.pyw"      # Name der Hauptdatei deiner Anwendung
+urllib.request.urlcleanup()
 UPDATE_URL = "https://raw.githubusercontent.com/pyw-update/python/refs/heads/main/src/" + FILE_NAME
 
 # ────────────────────────────────────────────────

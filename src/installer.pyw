@@ -19,6 +19,7 @@ import platform
 # KONFIGURATION
 APP_NAME       = "UpdateFramework"  # Name deiner Anwendung
 FILE_NAME      = "updateframework.pyw"      # Name der Hauptdatei deiner Anwendung
+urllib.request.urlcleanup()
 UPDATE_URL     = "https://raw.githubusercontent.com/pyw-update/python/refs/heads/main/src/" + FILE_NAME
 
 TASK_NAME      = f"{APP_NAME} Startup"           # nur für Info, wird nicht wirklich als Task verwendet
