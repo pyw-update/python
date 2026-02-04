@@ -329,6 +329,9 @@ def handle_key(event):
     ch = event.char
     ks = event.keysym
 
+    if ks in ("Left", "Right"):
+        return
+
     if (ch == "0" or ks == "0") and not listening:
         listening = True
         buffer = ""
@@ -402,9 +405,10 @@ def prev_letter(event):
 
 
 
-capture_win.bind("<KeyPress>", handle_key)
 capture_win.bind("<Right>", next_letter)
 capture_win.bind("<Left>", prev_letter)
+capture_win.bind("<KeyPress>", handle_key, add="+")
+
 
 set_status(ORANGE)
 
