@@ -331,13 +331,14 @@ def handle_key(event):
     ks = event.keysym
     ch = event.char
 
-    # Start listening mit 0
+    # Start listening
     if (ch == "0" or ks == "0") and not listening:
         listening = True
         buffer = ""
         current_letter = "a"
 
         label.configure(text=current_letter)
+
         overlay.deiconify()
         overlay.lift()
         overlay.focus_force()
@@ -360,19 +361,25 @@ def handle_key(event):
         label.configure(text=f"{buffer}{current_letter}")
         return "break"
 
-    # ⬆️ aktuellen Buchstaben übernehmen
+    # ⬆️ übernehmen
     if ks == "Up":
         buffer += current_letter
         label.configure(text=buffer)
         return "break"
 
-    # ⌫ Backspace
+    # Backspace
     if ks == "BackSpace":
         buffer = buffer[:-1]
         label.configure(text=buffer)
         return "break"
 
-    # ; = Suche ausführen
+    # normale Tastatur
+    if ch and ch.isprintable() and len(ch) == 1:
+        buffer += ch
+        label.configure(text=buffer)
+        return "break"
+
+    # ; = bestätigen
     if ch == ";" or ks == "semicolon":
         listening = False
         set_status(ORANGE)
@@ -389,13 +396,8 @@ def handle_key(event):
         buffer = ""
         return "break"
 
-    # ⌨️ normale Tastatureingabe erlauben
-    if ch and ch.isprintable() and len(ch) == 1:
-        buffer += ch
-        label.configure(text=buffer)
-        return "break"
-
     return "break"
+
 
 
 def get_next_letter(s: str) -> str:
@@ -445,6 +447,7 @@ set_status(ORANGE)
 
 capture_win.deiconify()
 capture_win.focus_force()
-capture_win.withdraw()
+capture_win.attributes("-alpha", 0.01)
+
 
 status_win.mainloop()
