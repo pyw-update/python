@@ -471,6 +471,4 @@ capture_win.deiconify()
 capture_win.focus_force()
 capture_win.attributes("-alpha", 0.01)  # unsichtbar, aber aktiv
 
-
-
 status_win.mainloop()
