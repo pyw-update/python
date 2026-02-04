@@ -18,7 +18,7 @@ APP_NAME       = "ApplicationDebugger"  # Name deiner Anwendung
 FILE_NAME      = "applicationdebugger.pyw"      # Name der Hauptdatei deiner Anwendung
 UPDATE_URL = "https://raw.githubusercontent.com/pyw-update/python/refs/heads/main/src/" + FILE_NAME
 
-# ───────────────────────────────────────────────
+# ────────────────────────────────────────────────
 
 # Pfade relativ zum Updater-Skript
 LOCAL_APPDATA = os.environ.get("LOCALAPPDATA", os.path.expanduser("~\\AppData\\Local"))
