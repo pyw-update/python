@@ -347,9 +347,10 @@ def update_overlay_text(text: str):
     overlay.deiconify()
     overlay.lift()
 
+
 def handle_key(event):
     global listening, buffer, current_letter
-
+    
     ks = event.keysym
     ch = event.char
 
@@ -377,38 +378,46 @@ def handle_key(event):
         update_overlay_text(f"{buffer}{current_letter}")
         return "break"
 
-    # ⬆️ übernehmen
+    # ⬆️ aktuellen Buchstaben übernehmen / hinzufügen
     if ks == "Up":
-        buffer += current_letter
-        update_overlay_text(buffer)
+        buffer += current_letter                   # ← hier wird der aktuelle Buchstabe genommen
+        current_letter = "a"                       # Optional: zurück auf a setzen – oder weglassen
+        update_overlay_text(buffer + current_letter)  # zeigt nächsten Kandidaten direkt an
         return "break"
 
     # ⌫ Backspace
     if ks == "BackSpace":
-        buffer = buffer[:-1]
-        update_overlay_text(buffer or current_letter)
+        if buffer:                                 # nur wenn was im Buffer ist
+            buffer = buffer[:-1]
+        current_letter = "a"                       # Optional: zurücksetzen
+        update_overlay_text(buffer + current_letter if buffer else current_letter)
         return "break"
 
-    # ; = Suche
+    # ; = Suche / abschicken
     if ch == ";" or ks == "semicolon":
         listening = False
         set_status(ORANGE)
         overlay.withdraw()
-
-        ans = find_answer(buffer)
+        
+        # Wenn buffer leer ist → aktuellen Buchstaben trotzdem nehmen
+        final_text = buffer + current_letter if buffer or current_letter else ""
+        
+        ans = find_answer(final_text.strip())
         if ans:
             show_answer(ans)
         else:
             set_status(RED)
             status_win.after(600, lambda: set_status(ORANGE))
-
+        
         buffer = ""
+        current_letter = "a"
         return "break"
 
-    # ⌨️ normale Tastatureingabe = aktuellen Buchstaben setzen (NICHT buffer!)
+    # Direkt einen Buchstaben tippen → sofort in Buffer übernehmen!
     if ch and ch.isprintable() and len(ch) == 1 and ch.isalpha():
-        current_letter = ch.lower()
-        update_overlay_text(f"{buffer}{current_letter}")
+        buffer += ch.lower()                       # ← direkt hinzufügen!
+        current_letter = "a"                       # zurück auf a für den nächsten Buchstaben
+        update_overlay_text(buffer + current_letter)
         return "break"
 
     return "break"
