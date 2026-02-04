@@ -253,7 +253,7 @@ def next_variant(event=None):
 overlay.bind("<Button-1>", next_variant)           # Linksklick → nächste Variante
 overlay.bind("<space>", next_variant)            # Leertaste
 overlay.bind("<Right>", next_variant)            # Pfeil rechts
-overlay.bind("<Up>", label.focus_force)               # Hoch-Pfeil → Fokus auf Label
+overlay.bind("<Up>", label.focus_force())               # Hoch-Pfeil → Fokus auf Label
 # overlay.bind("<Return>", next_variant)           # Enter
 
 # Optional: Rechtsklick → zurück (oder schließen)
