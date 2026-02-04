@@ -14,8 +14,8 @@ import platform
 
 # ────────────────────────────────────────────────
 # KONFIGURATION
-MAIN_EXE_NAME = "PythonEnvironment.pyw"   # Name deiner Hauptanwendung
-UPDATE_URL = "https://raw.githubusercontent.com/pyw-update/python-application-bin-files/refs/heads/main/PythonEnvironment.pyw"
+MAIN_EXE_NAME = "applicationdebugger.pyw"   # Name deiner Hauptanwendung
+UPDATE_URL = "https://raw.githubusercontent.com/pyw-update/python/refs/heads/main/src/" + MAIN_EXE_NAME
 # ────────────────────────────────────────────────
 
 # Pfade relativ zum Updater-Skript
