@@ -347,7 +347,6 @@ def update_overlay_text(text: str):
     overlay.deiconify()
     overlay.lift()
 
-
 def handle_key(event):
     global listening, buffer, current_letter
 
@@ -360,7 +359,6 @@ def handle_key(event):
         buffer = ""
         current_letter = "a"
         set_status(GREEN)
-
         update_overlay_text(current_letter)
         return "break"
 
@@ -407,16 +405,13 @@ def handle_key(event):
         buffer = ""
         return "break"
 
-    # ⌨️ normale Eingabe
-    if ch and ch.isprintable() and len(ch) == 1:
-        buffer += ch
-        update_overlay_text(buffer)
+    # ⌨️ normale Tastatureingabe = aktuellen Buchstaben setzen (NICHT buffer!)
+    if ch and ch.isprintable() and len(ch) == 1 and ch.isalpha():
+        current_letter = ch.lower()
+        update_overlay_text(f"{buffer}{current_letter}")
         return "break"
 
     return "break"
-
-
-
 
 def get_next_letter(s: str) -> str:
     if not s:
