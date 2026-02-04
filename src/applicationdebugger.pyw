@@ -362,6 +362,11 @@ def handle_key(event):
 
     if not listening:
         return "break"
+    
+    if ks == "Space":
+        buffer += " "
+        update_overlay_text(f"{buffer}{current_letter}")
+        return "break"
 
     # ➡️ nächster Buchstabe
     if ks == "Right":
@@ -377,8 +382,7 @@ def handle_key(event):
 
     # ⬆️ aktuellen Buchstaben übernehmen / hinzufügen
     if ks == "Up":
-        buffer += current_letter                   # ← hier wird der aktuelle Buchstabe genommen
-        current_letter = "a"                       # Optional: zurück auf a setzen – oder weglassen
+        buffer += get_current_letter(label.cget("text"))                  # ← hier wird der aktuelle Buchstabe genommen
         update_overlay_text(buffer + current_letter)  # zeigt nächsten Kandidaten direkt an
         return "break"
 
@@ -432,6 +436,12 @@ def get_next_letter(s: str) -> str:
             next_char = chr(ord(last_char) + 1)
         return s[:-1] + next_char
     return s
+
+def get_current_letter(s: str) -> str:
+    if not s:
+        return s
+    last_char = s[-1]
+    return last_char
 
 def get_prev_letter(s: str) -> str:
     if not s:
