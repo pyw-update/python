@@ -83,6 +83,8 @@ RED    = "#ff0000"
 BACKGROUND_WIDTH = None
 BACKGROUND_HEIGHT = 10
 
+current_letter = "a"
+
 root = tk.Tk()
 root.withdraw()
 
@@ -324,27 +326,58 @@ def find_answer(query):
     return None
 
 def handle_key(event):
-    global listening, buffer
+    global listening, buffer, current_letter
 
-    ch = event.char
     ks = event.keysym
+    ch = event.char
 
-    if ks in ("Left", "Right"):
-        return
-
+    # Start listening mit 0
     if (ch == "0" or ks == "0") and not listening:
         listening = True
         buffer = ""
+        current_letter = "a"
+
+        label.configure(text=current_letter)
+        overlay.deiconify()
+        overlay.lift()
+        overlay.focus_force()
+
         set_status(GREEN)
-        overlay.withdraw()
         return "break"
 
     if not listening:
         return "break"
 
+    # ➡️ nächster Buchstabe
+    if ks == "Right":
+        current_letter = get_next_letter(current_letter)
+        label.configure(text=f"{buffer}{current_letter}")
+        return "break"
+
+    # ⬅️ vorheriger Buchstabe
+    if ks == "Left":
+        current_letter = get_prev_letter(current_letter)
+        label.configure(text=f"{buffer}{current_letter}")
+        return "break"
+
+    # ⬆️ aktuellen Buchstaben übernehmen
+    if ks == "Up":
+        buffer += current_letter
+        label.configure(text=buffer)
+        return "break"
+
+    # ⌫ Backspace
+    if ks == "BackSpace":
+        buffer = buffer[:-1]
+        label.configure(text=buffer)
+        return "break"
+
+    # ; = Suche ausführen
     if ch == ";" or ks == "semicolon":
         listening = False
         set_status(ORANGE)
+
+        overlay.withdraw()
 
         ans = find_answer(buffer)
         if ans:
@@ -356,16 +389,14 @@ def handle_key(event):
         buffer = ""
         return "break"
 
-    if ks == "BackSpace":
-        if buffer:
-            buffer = buffer[:-1]
-        return "break"
-
+    # ⌨️ normale Tastatureingabe erlauben
     if ch and ch.isprintable() and len(ch) == 1:
         buffer += ch
+        label.configure(text=buffer)
         return "break"
 
     return "break"
+
 
 def get_next_letter(s: str) -> str:
     if not s:
