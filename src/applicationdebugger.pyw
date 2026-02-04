@@ -392,8 +392,15 @@ def get_prev_letter(s: str) -> str:
         return s[:-1] + prev_char
     return s
 
-def next_letter(event):     label.configure(text=get_next_letter(label.cget("text")))
-def prev_letter(event):     label.configure(text=get_prev_letter(label.cget("text")))
+def next_letter(event):     
+    label.configure(text=get_next_letter(label.cget("text")))
+    overlay.update_idletasks()
+
+def prev_letter(event):     
+    label.configure(text=get_prev_letter(label.cget("text")))
+    overlay.update_idletasks()
+
+
 
 capture_win.bind("<KeyPress>", handle_key)
 capture_win.bind("<Right>", next_letter)
