@@ -1027,3 +1027,4 @@ capture_win.focus_force()
 capture_win.attributes("-alpha", 0.01)
 
 status_win.mainloop()
+#FIXED
