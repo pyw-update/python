@@ -597,12 +597,12 @@ QA = {
 # KONFIG
 # ------------------------------------------------------------
 FONT_NAME = "Arial"
-FONT_SIZE = 7
+FONT_SIZE = 8
 FONT_STYLE = "normal"
 TEXT_COLOR = "gray"
 ANSWER_BG_COLOR = "white"
 POSITION = "bottom_left"
-OFFSET_X = 50
+OFFSET_X = 51
 OFFSET_Y = 10
 MAX_WIDTH_RATIO = 0.45
 ORANGE = "#ff9900"
@@ -619,7 +619,7 @@ BACKGROUND_HEIGHT = 10
 boolean_ki_enabled = False
 venv_activated = False
 
-def activate_ki():
+def try_activate_ki():
     global boolean_ki_enabled
     try:
         import requests
@@ -630,7 +630,7 @@ def activate_ki():
         print("KI nicht verfügbar!")
 
 
-activate_ki()
+try_activate_ki()
 
 root = tk.Tk()
 root.withdraw()
@@ -968,6 +968,9 @@ def send_request_to_apifreellm(question: str) -> str:
         },
         json={
             "message": "Antworte in maximal 5 Wörtern und nicht mehr als 50 Zeichen.\nJede frage hat was mit IT zutun."
+            "Benutze keine Füllwörter wie 'Die Antwort ist' oder 'Es könnte sein'.\nWenn du die Antwort nicht kennst, schreibe 'Keine Antwort gefunden'.\n"
+            "Benutze keine Emojis oder Sonderzeichen.\nAntworten müssen auf Deutsch sein.\n"
+            "Benutze keine Textformattierung wie Aufzählungen oder Absätze.\n"
             "Beantworte mir diese Frage-> " + f"{question}"
         }
     )
