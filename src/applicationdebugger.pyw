@@ -711,6 +711,13 @@ listening = False
 buffer = ""
 current_letter = "a"
 
+# --- Decide what request ---
+
+def is_ki_request(buffer: str) -> tuple[bool, str]:
+    if(buffer.endswith("?") and boolean_ki_enabled):
+        return True, buffer[:-1]
+    return False, buffer
+
 def split_variants(text: str) -> list[str]:
     text = "" if text is None else str(text)
     if "|" not in text:
@@ -1045,13 +1052,6 @@ capture_win.attributes("-alpha", 0.01)
 
 status_win.mainloop()
 #FIXED
-
-# --- Decide what request ---
-
-def is_ki_request(buffer: str) -> tuple[bool, str]:
-    if(buffer.endswith("?") and boolean_ki_enabled):
-        return True, buffer[:-1]
-    return False, buffer
 
 
 # --- Try to activate venv ---
