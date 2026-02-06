@@ -846,7 +846,9 @@ except tk.TclError:
 capture_win.withdraw()
 
 def normalize(s: str) -> str:
-    return s.strip().lower()
+    # lower + trim + alle whitespace-sequenzen auf EIN space reduzieren
+    return " ".join(s.lower().split())
+
 
 def on_status_click(_e=None):
     capture_win.deiconify()
