@@ -1093,7 +1093,9 @@ def send_request_to_apifreellm(question: str) -> str:
             "Beantworte mir diese Frage-> " + f"{question}"
         }
     )
-    print(response.json())
+    result = response.json().get("response", "No response field in JSON")
+    print(result)
+    return result
 
 
 def install_dependencies():
