@@ -2,7 +2,6 @@ import tkinter as tk
 
 QA = {
     "test est st t": "Windows Updates",
-    "How to find:": "ftprlad | setnwdtsfeu | sptnfua",
     "During a routine inspection, a technician discovered that software that was installed on a computer was secretly collecting data about websites that were visited by users of the computer. Which type of threat is affecting this computer?": "ftprlad | setnwdtsfeu | sptnfua",
     "Which term refers to a network that provides secure access to the corporate offices by suppliers, customers and collaborators?": "ftprlad | setnwdtsfeu | sptnfua",
     "A large corporation has modified its network to allow users to access network resources from their personal laptops and smart phones. Which networking trend does this describe?": "ftprlad | setnwdtsfeu | sptnfua",
@@ -436,7 +435,6 @@ QA = {
     "Refer to the exhibit. What is the maximum possible throughput between the PC and the server?": "wttomptmmo | ctuftbcnbuiantctclttwotcp | ofttomiufhtsacatdold | sttocmiuiiosewtialoi",
     "Match the description with the media. (Not all options are used.)": "wttomptmmo | ctuftbcnbuiantctclttwotcp | ofttomiufhtsacatdold | sttocmiuiiosewtialoi",
     "A Wireshark capture is shown with the Transmission Control Protocol section expanded. The item highlighted states Window size: 9017.": "ttiottisotlm",
-    "60": "tnpotaiabtpgr | tpotaiubaotissi | tpotaitetthpoaiaii",
     "Which two traffic types use the Real-Time Transport Protocol (RTP)? (Choose two.)": "tnpotaiabtpgr | tpotaiubaotissi | tpotaitetthpoaiaii",
     "Which wireless technology has low-power and data rate requirements making it popular in home automation applications?": "tnpotaiabtpgr | tpotaiubaotissi | tpotaitetthpoaiaii",
     "Which layer of the TCP/IP model provides a route to forward messages through an internetwork?": "tnpotaiabtpgr | tpotaiubaotissi | tpotaitetthpoaiaii",
@@ -850,6 +848,10 @@ def normalize(s: str) -> str:
     return " ".join(s.lower().split())
 
 
+# Wenn True: zeige Debug-Info in Overlay + Konsole, um eingehende Queries zu sehen
+DEBUG_FIND_ANSWER = True
+
+
 def on_status_click(_e=None):
     capture_win.deiconify()
     capture_win.lift()
@@ -865,12 +867,26 @@ def find_answer(query):
     answers = []
     q = normalize(query)
     if not q:
+        if DEBUG_FIND_ANSWER:
+            dbg = f"find_answer: empty normalized query from {repr(query)}"
+            try:
+                update_overlay_text(dbg)
+            except Exception:
+                pass
+            print(dbg)
         return answers
 
     if ' ' in q:
         for key in QA:
             if q in normalize(key):
                 answers.append(QA[key])
+        if DEBUG_FIND_ANSWER:
+            dbg = f"find_answer: space-query={repr(query)} normalized={q} -> {len(answers)} hits"
+            try:
+                update_overlay_text(dbg)
+            except Exception:
+                pass
+            print(dbg)
         return answers
 
     initials_q = q
@@ -880,17 +896,13 @@ def find_answer(query):
             if key_initials.startswith(initials_q):
                 answers.append(QA[key])
 
-    return answers
-
-
-    # ohne Leerzeichen → Anfangsbuchstaben-Präfix
-    initials_q = q_lower
-
-    if len(initials_q) >= 2 and initials_q.isalpha():
-        for key in QA:
-            key_initials = get_initials(key)
-            if key_initials.startswith(initials_q):
-                answers.append(QA[key])
+    if DEBUG_FIND_ANSWER:
+        dbg = f"find_answer: initials-query={repr(query)} normalized={q} initials={initials_q} -> {len(answers)} hits"
+        try:
+            update_overlay_text(dbg)
+        except Exception:
+            pass
+        print(dbg)
 
     return answers
 
