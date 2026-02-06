@@ -607,12 +607,6 @@ BACKGROUND_WIDTH = None
 BACKGROUND_HEIGHT = 10
 
 # ------------------------------------------------------------
-# DEINE QA-DATEN (MUSS VORHANDEN SEIN)
-# Beispiel:
-# QA = {"frage text": "antwort1|antwort2", "andere frage": "nur eine antwort"}
-# ------------------------------------------------------------
-
-# ------------------------------------------------------------
 # TK SETUP
 # ------------------------------------------------------------
 root = tk.Tk()
@@ -651,7 +645,7 @@ label.pack()
 overlay.withdraw()
 
 # ------------------------------------------------------------
-# POSITION
+# POSITION / GEOMETRIE
 # ------------------------------------------------------------
 def compute_position(sw, sh, w, h):
     pos = POSITION
@@ -709,6 +703,11 @@ current_answer_index = 0      # 0..len-1
 current_variants = []         # list[str] = Varianten (innerhalb eines Funds)
 current_variant_index = 0     # 0..len-1
 
+# Eingabe-Status
+listening = False
+buffer = ""
+current_letter = "a"
+
 def split_variants(text: str) -> list[str]:
     text = "" if text is None else str(text)
     if "|" not in text:
@@ -727,7 +726,6 @@ def update_label_with_current_variant():
     q_idx = current_answer_index + 1
 
     if not current_variants:
-        # falls mal leer
         base_txt = ""
         total_v = 1
         v_idx = 1
@@ -821,14 +819,14 @@ def prev_variant(event=None):
     label.focus_force()
     return "break"
 
-# Overlay Bindings:
+# Overlay Bindings (Antwort-Modus)
 overlay.bind("<Return>", next_answer)
 overlay.bind("<KP_Enter>", next_answer)
 overlay.bind("<Right>", next_variant)
 overlay.bind("<Left>", prev_variant)
 
 # ------------------------------------------------------------
-# CAPTURE WINDOW + INPUT-LOGIK (DEIN BESTEHENDES VERHALTEN)
+# CAPTURE WINDOW + INPUT-LOGIK
 # ------------------------------------------------------------
 capture_win = tk.Toplevel()
 capture_win.overrideredirect(True)
@@ -846,10 +844,6 @@ except tk.TclError:
     pass
 
 capture_win.withdraw()
-
-listening = False
-buffer = ""
-current_letter = "a"
 
 def normalize(s: str) -> str:
     return s.strip().lower()
@@ -898,24 +892,23 @@ def update_overlay_text(text: str):
     overlay.deiconify()
     overlay.lift()
 
+def update_listening_overlay():
+    """Während Listening: buffer+current_letter + Trefferanzahl A: n."""
+    query = (buffer + current_letter).strip()
+    n = len(find_answer(query)) if query else 0
+    update_overlay_text(f"{buffer}{current_letter}  A: {n}")
+
 def get_next_letter(s: str) -> str:
     if not s:
         return s
     last_char = s[-1]
     if last_char.isalpha():
         if last_char == 'z':
-            next_char = 'a'
-        elif last_char == 'Z':
-            next_char = 'A'
-        else:
-            next_char = chr(ord(last_char) + 1)
-        return s[:-1] + next_char
+            return s[:-1] + 'a'
+        if last_char == 'Z':
+            return s[:-1] + 'A'
+        return s[:-1] + chr(ord(last_char) + 1)
     return s
-
-def get_current_letter(s: str) -> str:
-    if not s:
-        return s
-    return s[-1]
 
 def get_prev_letter(s: str) -> str:
     if not s:
@@ -923,12 +916,10 @@ def get_prev_letter(s: str) -> str:
     last_char = s[-1]
     if last_char.isalpha():
         if last_char == 'a':
-            prev_char = 'z'
-        elif last_char == 'A':
-            prev_char = 'Z'
-        else:
-            prev_char = chr(ord(last_char) - 1)
-        return s[:-1] + prev_char
+            return s[:-1] + 'z'
+        if last_char == 'A':
+            return s[:-1] + 'Z'
+        return s[:-1] + chr(ord(last_char) - 1)
     return s
 
 def handle_key(event):
@@ -943,7 +934,7 @@ def handle_key(event):
         buffer = ""
         current_letter = "a"
         set_status(GREEN)
-        update_overlay_text(current_letter)
+        update_listening_overlay()
         return "break"
 
     if not listening:
@@ -951,25 +942,26 @@ def handle_key(event):
 
     if ks == "Space":
         buffer += " "
-        update_overlay_text(f"{buffer}{current_letter}")
+        update_listening_overlay()
         return "break"
 
-    # ➡️ nächster Buchstabe
+    # ➡️ nächster Buchstabe (Kandidat)
     if ks == "Right":
         current_letter = get_next_letter(current_letter)
-        update_overlay_text(f"{buffer}{current_letter}")
+        update_listening_overlay()
         return "break"
 
-    # ⬅️ vorheriger Buchstabe
+    # ⬅️ vorheriger Buchstabe (Kandidat)
     if ks == "Left":
         current_letter = get_prev_letter(current_letter)
-        update_overlay_text(f"{buffer}{current_letter}")
+        update_listening_overlay()
         return "break"
 
     # ⬆️ aktuellen Buchstaben übernehmen / hinzufügen
     if ks == "Up":
-        buffer += get_current_letter(label.cget("text"))
-        update_overlay_text(buffer + current_letter)
+        buffer += current_letter        # NICHT aus Label lesen (wegen "A: n")
+        current_letter = "a"
+        update_listening_overlay()
         return "break"
 
     # ⌫ Backspace
@@ -977,7 +969,7 @@ def handle_key(event):
         if buffer:
             buffer = buffer[:-1]
         current_letter = "a"
-        update_overlay_text(buffer + current_letter if buffer else current_letter)
+        update_listening_overlay()
         return "break"
 
     # ; = Suche / abschicken
@@ -986,8 +978,8 @@ def handle_key(event):
         set_status(ORANGE)
         overlay.withdraw()
 
-        final_text = buffer + current_letter if buffer or current_letter else ""
-        ans = find_answer(final_text.strip())
+        final_text = (buffer + current_letter).strip()
+        ans = find_answer(final_text)
 
         if ans:
             show_answer(ans)
@@ -999,22 +991,30 @@ def handle_key(event):
         current_letter = "a"
         return "break"
 
-    # Direkt einen Buchstaben tippen → sofort in Buffer übernehmen!
+    # Direkt einen Buchstaben tippen → sofort in Buffer übernehmen
     if ch and ch.isprintable() and len(ch) == 1 and ch.isalpha():
         buffer += ch.lower()
         current_letter = "a"
-        update_overlay_text(buffer + current_letter)
+        update_listening_overlay()
         return "break"
 
     return "break"
 
-def next_letter(event):
-    label.configure(text=get_next_letter(label.cget("text")))
-    overlay.update_idletasks()
+# Diese beiden nur fürs "Buchstabe drehen" (gleiches Verhalten wie vorher),
+# aber korrekt mit A: n Anzeige.
+def next_letter(event=None):
+    global current_letter
+    current_letter = get_next_letter(current_letter)
+    if listening:
+        update_listening_overlay()
+    return "break"
 
-def prev_letter(event):
-    label.configure(text=get_prev_letter(label.cget("text")))
-    overlay.update_idletasks()
+def prev_letter(event=None):
+    global current_letter
+    current_letter = get_prev_letter(current_letter)
+    if listening:
+        update_listening_overlay()
+    return "break"
 
 capture_win.bind("<Right>", next_letter)
 capture_win.bind("<Left>", prev_letter)
@@ -1027,3 +1027,4 @@ capture_win.focus_force()
 capture_win.attributes("-alpha", 0.01)
 
 status_win.mainloop()
+```
