@@ -2,7 +2,7 @@
 """
 Einfacher Installer + Updater für eine Python-.pyw-Anwendung
 - Keine Admin-Rechte erforderlich
-- Nutzt Startup-Ordner + HKCU\Run für Autostart
+- Nutzt Startup-Ordner + HKCU:Run für Autostart
 - Lädt/aktualisiert die Anwendung aus dem Internet
 """
 
@@ -66,7 +66,7 @@ def download_or_update_app():
 
 
 def add_to_registry_run():
-    """Fügt Eintrag in HKCU\Run hinzu – läuft beim Login"""
+    """Fügt Eintrag in HKCU:Run hinzu – läuft beim Login"""
     key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
     python_exe = sys.executable
 
