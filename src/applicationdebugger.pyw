@@ -822,7 +822,7 @@ overlay.bind("<Return>", next_answer)
 overlay.bind("<KP_Enter>", next_answer)
 overlay.bind("<Right>", next_variant)
 overlay.bind("<Left>", prev_variant)
-overlay.bind("<Shift_R>", exit(1))
+overlay.bind("<Shift_R>", lambda e=None: root.quit())
 
 # ------------------------------------------------------------
 # CAPTURE WINDOW + INPUT-LOGIK
@@ -1023,7 +1023,7 @@ def prev_letter(event=None):
 capture_win.bind("<Right>", next_letter)
 capture_win.bind("<Left>", prev_letter)
 capture_win.bind("<KeyPress>", handle_key, add="+")
-overlay.bind("<Shift_R>", exit(1))
+overlay.bind("<Shift_R>", lambda e=None: root.quit())
 
 set_status(ORANGE)
 
