@@ -587,9 +587,6 @@ QA = {
     "A user is executing a tracert to a remote device. At what point would a router, which is in the path to the destination device, stop forwarding the packet?": "wtvittfrz",
     "Users report that the network access is slow. After questioning the employees, the network administrator learned that one employee downloaded a third-party scanning program for the printer. What type of malware might be introduced that causes slow performance of the network?": "worm",
 }
-import os
-import subprocess
-import tkinter as tk
 
 # ------------------------------------------------------------
 # KONFIG
@@ -607,53 +604,74 @@ ORANGE = "#ff9900"
 GREEN  = "#00cc44"
 RED    = "#ff0000"
 BACKGROUND_WIDTH = None
-BACKGROUND_HEIGHT = None   # FIX: 10 schneidet Text ab
-
-# ------------------------------------------------------------
-# GLOBALS
-# ------------------------------------------------------------
-boolean_ki_enabled = False
-venv_activated = False
-
-# ------------------------------------------------------------
-# VENV (fix: realistisch & stabil)
-# ------------------------------------------------------------
-def try_install_venv() -> bool:
-    if not os.path.exists("./venv"):
-        res = subprocess.run(["python", "-m", "venv", "venv"])
-        return res.returncode == 0
-    return True
-
-
-def activate_venv() -> bool:
-    # Aktivieren per source geht aus Python NICHT
-    # → wir markieren das venv als aktiv
-    global venv_activated
-    venv_activated = True
-    return True
-
-
-def install_dependencies():
-    global boolean_ki_enabled
-    try:
-        import requests
-        boolean_ki_enabled = True
-    except ImportError:
-        subprocess.run(["pip", "install", "requests"])
-        try:
-            import requests
-            boolean_ki_enabled = True
-        except ImportError:
-            boolean_ki_enabled = False
-
-
-if __name__ == "__main__":
-    if try_install_venv() and activate_venv():
-        install_dependencies()
+BACKGROUND_HEIGHT = 10
 
 # ------------------------------------------------------------
 # TK SETUP
 # ------------------------------------------------------------
+
+
+boolean_ki_enabled = False
+venv_activated = False
+
+# --- Try to activate venv ---
+
+def try_install_venv() -> bool:
+    venv_path = os.path.join("./venv")
+    if not os.path.exists(venv_path):
+        if subprocess.run(["python", "-m", "venv", ".venv"], check=False):
+            print("Virtual environment created.")
+            return True
+        else:
+            print("Failed to create virtual environment.")
+            return False
+    
+    return True
+
+
+def activate_venv() -> bool:
+    venv_path = os.path.join("./venv")
+    if not os.path.exists(venv_path):
+        if subprocess.run(["source", "./venv/Scripts/activate"], check=False):
+            print("Virtual environment activated.")
+        else:
+            print("Failed to activate virtual environment.")
+            return False
+        
+    return True
+
+def install_dependencies():
+    if venv_activated:
+        try:
+            import requests
+            print("Dependencies already installed.")
+            boolean_ki_enabled = True
+        except ImportError:
+            print("Installing dependencies...")
+            if subprocess.run(["pip", "install", "-r", "requirements.txt"], check=False):
+                print("Dependencies installed successfully.")
+            else:
+                print("Failed to install dependencies.")
+                boolean_ki_enabled = False
+            try:
+                import requests
+            except ImportError:
+                boolean_ki_enabled = False
+            boolean_ki_enabled = True
+
+if __name__ == "__main__":
+    if try_install_venv():
+        if activate_venv():
+            print("Virtual environment is ready.")
+            install_dependencies()
+        else:
+            print("Failed to activate virtual environment.")
+    else:
+        print("Failed to create virtual environment.")
+
+
+
+
 root = tk.Tk()
 root.withdraw()
 
@@ -672,6 +690,11 @@ overlay = tk.Toplevel()
 overlay.overrideredirect(True)
 overlay.attributes("-topmost", True)
 
+try:
+    overlay.wm_attributes("-transparentcolor")
+except tk.TclError:
+    pass
+
 label = tk.Label(
     overlay,
     text="",
@@ -688,13 +711,36 @@ overlay.withdraw()
 # POSITION / GEOMETRIE
 # ------------------------------------------------------------
 def compute_position(sw, sh, w, h):
-    x, y = 0, sh - h
+    pos = POSITION
+    if pos == "top_left":
+        x, y = 0, 0
+    elif pos == "top_center":
+        x, y = (sw - w) // 2, 0
+    elif pos == "top_right":
+        x, y = sw - w, 0
+    elif pos == "center_left":
+        x, y = 0, (sh - h) // 2
+    elif pos == "center":
+        x, y = (sw - w) // 2, (sh - h) // 2
+    elif pos == "center_right":
+        x, y = sw - w, (sh - h) // 2
+    elif pos == "bottom_left":
+        x, y = 0, sh - h
+    elif pos == "bottom_center":
+        x, y = (sw - w) // 2, sh - h
+    elif pos == "bottom_right":
+        x, y = sw - w, sh - h
+    else:
+        x, y = sw - w, 0
+
     x += OFFSET_X
     y += OFFSET_Y
+    x = max(0, min(sw - w, x))
+    y = max(0, min(sh - h, y))
     return x, y
 
-
 def recalc_overlay_geometry():
+    """Wrap/Size/Position fürs Overlay neu berechnen."""
     sw = overlay.winfo_screenwidth()
     sh = overlay.winfo_screenheight()
 
@@ -705,161 +751,383 @@ def recalc_overlay_geometry():
     w = label.winfo_reqwidth()
     h = label.winfo_reqheight()
 
-    x, y = compute_position(sw, sh, w, h)
-    overlay.geometry(f"{w}x{h}+{x}+{y}")
+    bg_w = w if BACKGROUND_WIDTH is None else BACKGROUND_WIDTH
+    bg_h = h if BACKGROUND_HEIGHT is None else BACKGROUND_HEIGHT
+
+    x, y = compute_position(sw, sh, bg_w, bg_h)
+    overlay.geometry(f"{bg_w}x{bg_h}+{x}+{y}")
 
 # ------------------------------------------------------------
-# ANSWER / VARIANTEN
+# ZWEI EBENEN: FUNDE (ENTER) + VARIANTEN (←/→)
 # ------------------------------------------------------------
-current_answers = []
-current_answer_index = 0
-current_variants = []
-current_variant_index = 0
+current_answers = []          # list[str] = Funde
+current_answer_index = 0      # 0..len-1
 
+current_variants = []         # list[str] = Varianten (innerhalb eines Funds)
+current_variant_index = 0     # 0..len-1
+
+# Eingabe-Status
 listening = False
 buffer = ""
 current_letter = "a"
 
-def is_ki_request(buffer: str):
-    if buffer.endswith("?") and boolean_ki_enabled:
+# --- Decide what request ---
+
+def is_ki_request(buffer: str) -> tuple[bool, str]:
+    if(buffer.endswith("?") and boolean_ki_enabled):
+        print(("KI enabled." if boolean_ki_enabled else "KI disabled."))
         return True, buffer[:-1]
+    print("Not a KI request." + str(boolean_ki_enabled))
     return False, buffer
 
-def split_variants(text: str):
+def split_variants(text: str) -> list[str]:
+    text = "" if text is None else str(text)
     if "|" not in text:
-        return [text.strip()]
-    return [p.strip() for p in text.split("|") if p.strip()]
+        t = text.strip()
+        return [t] if t else [""]
+    parts = [p.strip() for p in text.split("|") if p.strip()]
+    return parts if parts else [text.strip()]
 
 def update_label_with_current_variant():
+    """Labeltext inkl. 'Q: x/y [v/z]' bauen und anzeigen."""
     if not current_answers:
-        label.configure(text="(keine Antwort)", fg=RED)
+        label.configure(text="(keine Antwort)", anchor="w", fg=RED)
         return
 
-    base = current_variants[current_variant_index]
-    label.configure(text=base, fg=TEXT_COLOR)
+    total_q = len(current_answers)
+    q_idx = current_answer_index + 1
+
+    if not current_variants:
+        base_txt = ""
+        total_v = 1
+        v_idx = 1
+    else:
+        base_txt = current_variants[current_variant_index]
+        total_v = len(current_variants)
+        v_idx = current_variant_index + 1
+
+    prefix = ""
+    if total_q > 1:
+        prefix += f"Q: {q_idx}/{total_q}  "
+    if total_v > 1:
+        prefix += f"[{v_idx}/{total_v}] "
+
+    label.configure(text=prefix + base_txt, anchor="w", fg=TEXT_COLOR)
 
 def show_answer(answers):
-    global current_answers, current_variants
-    global current_answer_index, current_variant_index
+    """
+    answers:
+      - list[str] = mehrere Funde
+      - str = ein Fund
+    ENTER: nächster Fund (zyklisch)
+    LEFT/RIGHT: Varianten innerhalb Fund (zyklisch)
+    """
+    global current_answers, current_answer_index
+    global current_variants, current_variant_index
 
-    if isinstance(answers, list):
-        current_answers = answers
+    # Funde vorbereiten
+    if answers is None:
+        current_answers = []
+    elif isinstance(answers, list):
+        current_answers = [str(a).strip() for a in answers if str(a).strip()]
     else:
-        current_answers = [answers]
+        s = str(answers).strip()
+        current_answers = [s] if s else []
 
     current_answer_index = 0
-    current_variants = split_variants(current_answers[0])
+    current_variant_index = 0
+
+    if not current_answers:
+        label.configure(text="(keine Antwort)", anchor="w", fg=RED)
+        overlay.update_idletasks()
+        return
+
+    # Varianten aus erstem Fund
+    current_variants = split_variants(current_answers[current_answer_index])
     current_variant_index = 0
 
     update_label_with_current_variant()
     recalc_overlay_geometry()
+
     overlay.deiconify()
     overlay.lift()
+    label.focus_force()
 
-def next_variant(event=None):
-    global current_variant_index
-    if len(current_variants) > 1:
-        current_variant_index = (current_variant_index + 1) % len(current_variants)
-        update_label_with_current_variant()
-        recalc_overlay_geometry()
+def next_answer(event=None):
+    """ENTER -> nächster Fund (zyklisch). Varianten reset."""
+    global current_answer_index, current_variants, current_variant_index
+
+    if not current_answers:
+        return "break"
+
+    current_answer_index = (current_answer_index + 1) % len(current_answers)
+    current_variants = split_variants(current_answers[current_answer_index])
+    current_variant_index = 0
+
+    update_label_with_current_variant()
+    recalc_overlay_geometry()
+    label.focus_force()
     return "break"
 
+def next_variant(event=None):
+    """→ -> nächste Variante im aktuellen Fund (zyklisch)."""
+    global current_variant_index
+    if len(current_variants) <= 1:
+        return "break"
+    current_variant_index = (current_variant_index + 1) % len(current_variants)
+    update_label_with_current_variant()
+    recalc_overlay_geometry()
+    label.focus_force()
+    return "break"
+
+def prev_variant(event=None):
+    """← -> vorige Variante im aktuellen Fund (zyklisch)."""
+    global current_variant_index
+    if len(current_variants) <= 1:
+        return "break"
+    current_variant_index = (current_variant_index - 1) % len(current_variants)
+    update_label_with_current_variant()
+    recalc_overlay_geometry()
+    label.focus_force()
+    return "break"
+
+# Overlay Bindings (Antwort-Modus)
+overlay.bind("<Return>", next_answer)
+overlay.bind("<KP_Enter>", next_answer)
 overlay.bind("<Right>", next_variant)
-overlay.bind("<Left>", next_variant)
+overlay.bind("<Left>", prev_variant)
+overlay.bind("<Shift_R>", lambda e=None: root.quit())
 
 # ------------------------------------------------------------
-# CAPTURE WINDOW
+# CAPTURE WINDOW + INPUT-LOGIK
 # ------------------------------------------------------------
 capture_win = tk.Toplevel()
 capture_win.overrideredirect(True)
 capture_win.attributes("-topmost", True)
 capture_win.geometry("1x1+0+0")
-capture_win.attributes("-alpha", 0.01)
 
-def normalize(s: str):
+try:
+    capture_win.wm_attributes("-transparentcolor")
+except tk.TclError:
+    pass
+
+try:
+    capture_win.attributes("-alpha", 0.01)
+except tk.TclError:
+    pass
+
+capture_win.withdraw()
+
+def normalize(s: str) -> str:
+    # lower + trim + alle whitespace-sequenzen auf EIN space reduzieren
     return " ".join(s.lower().split())
 
-# Dummy QA damit Code lauffähig ist
-QA = {
-    "python list comprehension": "Kurzschreibweise für Schleifen",
-    "tcp ip": "Netzwerkprotokoll"
-}
+
+def on_status_click(_e=None):
+    capture_win.deiconify()
+    capture_win.lift()
+    capture_win.focus_force()
+
+status_win.bind("<Button-1>", on_status_click)
+status_win.bind("<Shift_R>", lambda e=None: root.quit())
+
+def get_initials(s):
+    words = [w for w in s.split() if w and w[0].isalpha()]
+    return ''.join(w[0].lower() for w in words)
 
 def find_answer(query):
+    answers = []
     q = normalize(query)
-    return [v for k, v in QA.items() if q in normalize(k)]
+    if not q:
+        return answers
 
-def update_overlay_text(text):
+    if ' ' in q:
+        for key in QA:
+            if q in normalize(key):
+                answers.append(QA[key])
+        return answers
+
+    initials_q = q
+    if len(initials_q) >= 2 and initials_q.isalpha():
+        for key in QA:
+            key_initials = get_initials(key)
+            if key_initials.startswith(initials_q):
+                answers.append(QA[key])
+
+    return answers
+
+def update_overlay_text(text: str):
     label.configure(text=text)
+    overlay.update_idletasks()
     recalc_overlay_geometry()
     overlay.deiconify()
+    overlay.lift()
+
+def update_listening_overlay():
+    """Während Listening: buffer + current_letter + Trefferanzahl A: n."""
+    query = buffer
+    if query:
+        n = len(find_answer(query))
+    else:
+        n = 0
+    update_overlay_text(f"{buffer}{current_letter} | A: {n}")
+
+
+def get_next_letter(s: str) -> str:
+    if not s:
+        return s
+    last_char = s[-1]
+    if last_char.isalpha():
+        if last_char == 'z':
+            return s[:-1] + 'a'
+        if last_char == 'Z':
+            return s[:-1] + 'A'
+        return s[:-1] + chr(ord(last_char) + 1)
+    return s
+
+def get_prev_letter(s: str) -> str:
+    if not s:
+        return s
+    last_char = s[-1]
+    if last_char.isalpha():
+        if last_char == 'a':
+            return s[:-1] + 'z'
+        if last_char == 'A':
+            return s[:-1] + 'Z'
+        return s[:-1] + chr(ord(last_char) - 1)
+    return s
 
 def handle_key(event):
     global listening, buffer, current_letter
 
-    if event.char == "0" and not listening:
+    ks = event.keysym
+    ch = event.char
+
+    # Start Listening
+    if (ch == "0" or ks == "0") and not listening:
         listening = True
         buffer = ""
         current_letter = "a"
         set_status(GREEN)
-        update_overlay_text("")
+        update_listening_overlay()
         return "break"
 
     if not listening:
         return "break"
 
-    if event.keysym == "semicolon":
+    # SPACE
+    if ks in ("space", "Space") or ch == " ":
+        buffer += " "
+        update_listening_overlay()
+        return "break"
+
+
+    # ➡️ nächster Buchstabe (Kandidat)
+    if ks == "Right":
+        current_letter = get_next_letter(current_letter)
+        update_listening_overlay()
+        return "break"
+
+    # ⬅️ vorheriger Buchstabe (Kandidat)
+    if ks == "Left":
+        current_letter = get_prev_letter(current_letter)
+        update_listening_overlay()
+        return "break"
+
+    # ⬆️ aktuellen Buchstaben übernehmen / hinzufügen
+    if ks == "Up":
+        buffer += current_letter
+        current_letter = "a"
+        update_listening_overlay()
+        return "break"
+
+    # ⌫ Backspace
+    if ks == "BackSpace":
+        if buffer:
+            buffer = buffer[:-1]
+        current_letter = "a"
+        update_listening_overlay()
+        return "break"
+
+    # ; = Suche / abschicken (nicht in Text übernehmen!)
+    if ks == "semicolon" or ch == ";":
         listening = False
         set_status(ORANGE)
         overlay.withdraw()
 
-        is_ki, q = is_ki_request(buffer)
-        if is_ki:
-            show_answer(send_request_to_apifreellm(q))
+        final_text = buffer
+
+        if is_ki_request(final_text)[0]:
+            show_answer(send_request_to_apifreellm(final_text))
+            buffer = ""
+            current_letter = "a"
+            return "break"
+
+        ans = find_answer(final_text)
+
+        if ans:
+            show_answer(ans)
         else:
-            ans = find_answer(buffer)
-            if ans:
-                show_answer(ans)
-            else:
-                set_status(RED)
-                status_win.after(600, lambda: set_status(ORANGE))
+            set_status(RED)
+            status_win.after(600, lambda: set_status(ORANGE))
 
         buffer = ""
         current_letter = "a"
         return "break"
 
-    if event.char.isalpha():
-        buffer += event.char.lower()
-        update_overlay_text(buffer)
+
+    # Direkt einen Buchstaben tippen → sofort in Buffer übernehmen
+    if ch and ch.isprintable() and len(ch) == 1 and (ch.isalpha() or ch == "?"):
+        buffer += ch.lower()
+        current_letter = "a"
+        update_listening_overlay()
         return "break"
 
     return "break"
 
-capture_win.bind("<KeyPress>", handle_key)
+# Diese beiden nur fürs "Buchstabe drehen" (gleiches Verhalten wie vorher),
+# aber korrekt mit A: n Anzeige.
+def next_letter(event=None):
+    global current_letter
+    current_letter = get_next_letter(current_letter)
+    if listening:
+        update_listening_overlay()
+    return "break"
+
+def prev_letter(event=None):
+    global current_letter
+    current_letter = get_prev_letter(current_letter)
+    if listening:
+        update_listening_overlay()
+    return "break"
+
+capture_win.bind("<Right>", next_letter)
+capture_win.bind("<Left>", prev_letter)
+capture_win.bind("<KeyPress>", handle_key, add="+")
+overlay.bind("<Shift_R>", lambda e=None: root.quit())
 
 set_status(ORANGE)
+
 capture_win.deiconify()
 capture_win.focus_force()
+capture_win.attributes("-alpha", 0.01)
 
-# ------------------------------------------------------------
-# API
-# ------------------------------------------------------------
+status_win.mainloop()
+    
+# --- Communicate with ApiFreeLLM ---
 def send_request_to_apifreellm(question: str) -> str:
     import requests
-    r = requests.post(
+    response = requests.post(
         "https://apifreellm.com/api/v1/chat",
         headers={
             "Content-Type": "application/json",
             "Authorization": "Bearer apf_l208xkd98cq37dts5gotrlyx"
         },
         json={
-            "message": (
-                "Antworte in maximal 5 Wörtern und nicht mehr als 50 Zeichen. "
-                "Jede Frage hat mit IT zu tun. "
-                f"Frage: {question}"
-            )
+            "message": "Antworte in maximal 5 Wörtern und nicht mehr als 50 Zeichen.\nJede frage hat was mit IT zutun."
+            "Beantworte mir diese Frage-> " + f"{question}"
         }
     )
-    return r.json().get("response", "no response")
-
-status_win.mainloop()
+    result = response.json().get("response", "No response field in JSON")
+    print(result)
+    return result
