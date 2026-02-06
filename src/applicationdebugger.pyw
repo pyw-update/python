@@ -957,6 +957,24 @@ def get_prev_letter(s: str) -> str:
         return s[:-1] + chr(ord(last_char) - 1)
     return s
 
+# --- Communicate with ApiFreeLLM ---
+def send_request_to_apifreellm(question: str) -> str:
+    import requests
+    response = requests.post(
+        "https://apifreellm.com/api/v1/chat",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": "Bearer apf_l208xkd98cq37dts5gotrlyx"
+        },
+        json={
+            "message": "Antworte in maximal 5 Wörtern und nicht mehr als 50 Zeichen.\nJede frage hat was mit IT zutun."
+            "Beantworte mir diese Frage-> " + f"{question}"
+        }
+    )
+    result = response.json().get("response", "No response field in JSON")
+    print(result)
+    return result
+
 def handle_key(event):
     global listening, buffer, current_letter
 
@@ -1073,21 +1091,3 @@ capture_win.focus_force()
 capture_win.attributes("-alpha", 0.01)
 
 status_win.mainloop()
-    
-# --- Communicate with ApiFreeLLM ---
-def send_request_to_apifreellm(question: str) -> str:
-    import requests
-    response = requests.post(
-        "https://apifreellm.com/api/v1/chat",
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": "Bearer apf_l208xkd98cq37dts5gotrlyx"
-        },
-        json={
-            "message": "Antworte in maximal 5 Wörtern und nicht mehr als 50 Zeichen.\nJede frage hat was mit IT zutun."
-            "Beantworte mir diese Frage-> " + f"{question}"
-        }
-    )
-    result = response.json().get("response", "No response field in JSON")
-    print(result)
-    return result
