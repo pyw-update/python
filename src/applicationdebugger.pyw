@@ -588,7 +588,9 @@ QA = {
     "Users report that the network access is slow. After questioning the employees, the network administrator learned that one employee downloaded a third-party scanning program for the printer. What type of malware might be introduced that causes slow performance of the network?": "worm",
 }
 
-
+# ------------------------------------------------------------
+# KONFIG
+# ------------------------------------------------------------
 FONT_NAME = "Arial"
 FONT_SIZE = 7
 FONT_STYLE = "normal"
@@ -604,6 +606,15 @@ RED    = "#ff0000"
 BACKGROUND_WIDTH = None
 BACKGROUND_HEIGHT = 10
 
+# ------------------------------------------------------------
+# DEINE QA-DATEN (MUSS VORHANDEN SEIN)
+# Beispiel:
+# QA = {"frage text": "antwort1|antwort2", "andere frage": "nur eine antwort"}
+# ------------------------------------------------------------
+
+# ------------------------------------------------------------
+# TK SETUP
+# ------------------------------------------------------------
 root = tk.Tk()
 root.withdraw()
 
@@ -639,6 +650,9 @@ label.pack()
 
 overlay.withdraw()
 
+# ------------------------------------------------------------
+# POSITION
+# ------------------------------------------------------------
 def compute_position(sw, sh, w, h):
     pos = POSITION
     if pos == "top_left":
@@ -668,174 +682,154 @@ def compute_position(sw, sh, w, h):
     y = max(0, min(sh - h, y))
     return x, y
 
-# ────────────────────────────────────────────────
-# Neue globale Variablen (am besten ganz oben nach den anderen Konstanten)
-# ────────────────────────────────────────────────
+def recalc_overlay_geometry():
+    """Wrap/Size/Position fürs Overlay neu berechnen."""
+    sw = overlay.winfo_screenwidth()
+    sh = overlay.winfo_screenheight()
 
-current_variants = []
-current_variant_index = 0
+    wrap = int(sw * MAX_WIDTH_RATIO)
+    label.configure(wraplength=wrap)
+    overlay.update_idletasks()
 
-# ────────────────────────────────────────────────
-# Hilfsfunktion: Antwort splitten und bereinigen
-# ────────────────────────────────────────────────
+    w = label.winfo_reqwidth()
+    h = label.winfo_reqheight()
+
+    bg_w = w if BACKGROUND_WIDTH is None else BACKGROUND_WIDTH
+    bg_h = h if BACKGROUND_HEIGHT is None else BACKGROUND_HEIGHT
+
+    x, y = compute_position(sw, sh, bg_w, bg_h)
+    overlay.geometry(f"{bg_w}x{bg_h}+{x}+{y}")
+
+# ------------------------------------------------------------
+# ZWEI EBENEN: FUNDE (ENTER) + VARIANTEN (←/→)
+# ------------------------------------------------------------
+current_answers = []          # list[str] = Funde
+current_answer_index = 0      # 0..len-1
+
+current_variants = []         # list[str] = Varianten (innerhalb eines Funds)
+current_variant_index = 0     # 0..len-1
 
 def split_variants(text: str) -> list[str]:
-    if '|' not in text:
-        return [text.strip()]
-    
-    parts = [p.strip() for p in text.split('|') if p.strip()]
+    text = "" if text is None else str(text)
+    if "|" not in text:
+        t = text.strip()
+        return [t] if t else [""]
+    parts = [p.strip() for p in text.split("|") if p.strip()]
     return parts if parts else [text.strip()]
 
-# ────────────────────────────────────────────────
-# Angepasste show_answer Funktion
-# ────────────────────────────────────────────────
+def update_label_with_current_variant():
+    """Labeltext inkl. 'Q: x/y [v/z]' bauen und anzeigen."""
+    if not current_answers:
+        label.configure(text="(keine Antwort)", anchor="w", fg=RED)
+        return
+
+    total_q = len(current_answers)
+    q_idx = current_answer_index + 1
+
+    if not current_variants:
+        # falls mal leer
+        base_txt = ""
+        total_v = 1
+        v_idx = 1
+    else:
+        base_txt = current_variants[current_variant_index]
+        total_v = len(current_variants)
+        v_idx = current_variant_index + 1
+
+    prefix = ""
+    if total_q > 1:
+        prefix += f"Q: {q_idx}/{total_q}  "
+    if total_v > 1:
+        prefix += f"[{v_idx}/{total_v}] "
+
+    label.configure(text=prefix + base_txt, anchor="w", fg=TEXT_COLOR)
 
 def show_answer(answers):
     """
-    answers kann sein:
-      - list[str]: jede Zeile = eine Variante/Antwort
-      - str: wird als eine Variante behandelt
+    answers:
+      - list[str] = mehrere Funde
+      - str = ein Fund
+    ENTER: nächster Fund (zyklisch)
+    LEFT/RIGHT: Varianten innerhalb Fund (zyklisch)
     """
+    global current_answers, current_answer_index
     global current_variants, current_variant_index
 
-    # --- Varianten vorbereiten ---
+    # Funde vorbereiten
     if answers is None:
-        current_variants = []
+        current_answers = []
     elif isinstance(answers, list):
-        # Liste direkt als Varianten nutzen (leere/whitespace Einträge filtern)
-        current_variants = [str(a).strip() for a in answers if str(a).strip()]
+        current_answers = [str(a).strip() for a in answers if str(a).strip()]
     else:
-        # Fallback: einzelner String/Objekt -> eine Variante
         s = str(answers).strip()
-        current_variants = [s] if s else []
+        current_answers = [s] if s else []
 
+    current_answer_index = 0
     current_variant_index = 0
 
-    if not current_variants:
+    if not current_answers:
         label.configure(text="(keine Antwort)", anchor="w", fg=RED)
         overlay.update_idletasks()
         return
 
-    # Erste Variante anzeigen
-    update_list_label_with_current_variant()
+    # Varianten aus erstem Fund
+    current_variants = split_variants(current_answers[current_answer_index])
+    current_variant_index = 0
 
-    # Position neu berechnen & sichtbar machen
-    sw = overlay.winfo_screenwidth()
-    sh = overlay.winfo_screenheight()
-    wrap = int(sw * MAX_WIDTH_RATIO)
-    label.configure(wraplength=wrap)
-    overlay.update_idletasks()
+    update_label_with_current_variant()
+    recalc_overlay_geometry()
 
-    w = label.winfo_reqwidth()
-    h = label.winfo_reqheight()
-    background_width = w if BACKGROUND_WIDTH is None else BACKGROUND_WIDTH
-    background_height = h if BACKGROUND_HEIGHT is None else BACKGROUND_HEIGHT
-
-    x, y = compute_position(sw, sh, background_width, background_height)
-    overlay.geometry(f"{background_width}x{background_height}+{x}+{y}")
     overlay.deiconify()
     overlay.lift()
     label.focus_force()
 
+def next_answer(event=None):
+    """ENTER -> nächster Fund (zyklisch). Varianten reset."""
+    global current_answer_index, current_variants, current_variant_index
 
-def update_list_label_with_current_variant():
-    """Zeigt die aktuelle Variante an."""
-    if not current_variants:
-        label.configure(text="(keine Antwort)", anchor="w", fg=TEXT_COLOR)
-        return
-
-    t = current_variants[current_variant_index]
-    label.configure(text=t, anchor="w", fg=TEXT_COLOR)  # fg anpassen wie du willst
-    overlay.update_idletasks()
-
-
-def show_next_variant(event=None):
-    """ENTER -> nächste Antwort; am Ende wieder von vorne (oder ausblenden)."""
-    global current_variant_index
-
-    if not current_variants:
+    if not current_answers:
         return "break"
 
-    current_variant_index += 1
-
-    # Option A: zyklisch
-    if current_variant_index >= len(current_variants):
-        current_variant_index = 0
+    current_answer_index = (current_answer_index + 1) % len(current_answers)
+    current_variants = split_variants(current_answers[current_answer_index])
+    current_variant_index = 0
 
     update_label_with_current_variant()
+    recalc_overlay_geometry()
     label.focus_force()
     return "break"
 
-
-# EINMAL beim Setup binden (z.B. nach Erstellung von overlay/label):
-# Wichtig: bind auf overlay ODER label; ich würde overlay nehmen.
-overlay.bind("<Return>", show_next_variant)
-overlay.bind("<KP_Enter>", show_next_variant)  # Numpad Enter
-
-
-# ────────────────────────────────────────────────
-# Label mit aktueller Variante aktualisieren
-# ────────────────────────────────────────────────
-
-def update_label_with_current_variant():
-    if not current_variants:
-        label.configure(text="")
-        return
-
-    txt = current_variants[current_variant_index]
-
-    # Optional: Index + Gesamtanzahl anzeigen, wenn > 1 Variante
-    if len(current_variants) > 1:
-        txt = f"[{current_variant_index+1}/{len(current_variants)}]  {txt}"
-
-    # <-- FEHLT: wirklich ins Label schreiben
-    label.configure(text=txt, anchor="w")
-
-
-# ────────────────────────────────────────────────
-# Wechsel zur nächsten Variante (Zyklisch)
-# ────────────────────────────────────────────────
-
 def next_variant(event=None):
+    """→ -> nächste Variante im aktuellen Fund (zyklisch)."""
     global current_variant_index
     if len(current_variants) <= 1:
-        return
-
+        return "break"
     current_variant_index = (current_variant_index + 1) % len(current_variants)
     update_label_with_current_variant()
+    recalc_overlay_geometry()
+    label.focus_force()
+    return "break"
 
-    sw = overlay.winfo_screenwidth()
-    sh = overlay.winfo_screenheight()
-    wrap = int(sw * MAX_WIDTH_RATIO)
-    label.configure(wraplength=wrap)
-    overlay.update_idletasks()
-
-    w = label.winfo_reqwidth()
-    h = label.winfo_reqheight()
-    background_width  = w if BACKGROUND_WIDTH  is None else BACKGROUND_WIDTH
-    background_height = h if BACKGROUND_HEIGHT is None else BACKGROUND_HEIGHT
-
-    x, y = compute_position(sw, sh, background_width, background_height)
-    overlay.geometry(f"{background_width}x{background_height}+{x}+{y}")
-
-# ────────────────────────────────────────────────
-# Event-Bindings hinzufügen (am besten nach overlay = tk.Toplevel() )
-# ────────────────────────────────────────────────
-
-overlay.bind("<Shift_R>", exit)                 # Rechtsklick → nächste Variante
-overlay.bind("<Right>", next_variant)           # Pfeil rechts
-# overlay.bind("<Return>", next_variant)        # Enter
-
-# Optional: Rechtsklick → zurück (oder schließen)
 def prev_variant(event=None):
+    """← -> vorige Variante im aktuellen Fund (zyklisch)."""
     global current_variant_index
     if len(current_variants) <= 1:
-        return
+        return "break"
     current_variant_index = (current_variant_index - 1) % len(current_variants)
     update_label_with_current_variant()
+    recalc_overlay_geometry()
+    label.focus_force()
+    return "break"
 
-overlay.bind("<Left>", prev_variant)           # Rechtsklick → vorherige
+# Overlay Bindings:
+overlay.bind("<Return>", next_answer)
+overlay.bind("<KP_Enter>", next_answer)
+overlay.bind("<Right>", next_variant)
+overlay.bind("<Left>", prev_variant)
 
+# ------------------------------------------------------------
+# CAPTURE WINDOW + INPUT-LOGIK (DEIN BESTEHENDES VERHALTEN)
+# ------------------------------------------------------------
 capture_win = tk.Toplevel()
 capture_win.overrideredirect(True)
 capture_win.attributes("-topmost", True)
@@ -855,6 +849,7 @@ capture_win.withdraw()
 
 listening = False
 buffer = ""
+current_letter = "a"
 
 def normalize(s: str) -> str:
     return s.strip().lower()
@@ -892,35 +887,53 @@ def find_answer(query):
         for key in QA:
             key_initials = get_initials(key)
             if key_initials.startswith(initials_q):
-                answers.append(QA[key])          # ← erste passende Frage
+                answers.append(QA[key])
 
     return answers
 
 def update_overlay_text(text: str):
     label.configure(text=text)
-
     overlay.update_idletasks()
-
-    sw = overlay.winfo_screenwidth()
-    sh = overlay.winfo_screenheight()
-    wrap = int(sw * MAX_WIDTH_RATIO)
-    label.configure(wraplength=wrap)
-
-    w = label.winfo_reqwidth()
-    h = label.winfo_reqheight()
-
-    bg_w = w if BACKGROUND_WIDTH is None else BACKGROUND_WIDTH
-    bg_h = h if BACKGROUND_HEIGHT is None else BACKGROUND_HEIGHT
-
-    x, y = compute_position(sw, sh, bg_w, bg_h)
-    overlay.geometry(f"{bg_w}x{bg_h}+{x}+{y}")
-
+    recalc_overlay_geometry()
     overlay.deiconify()
     overlay.lift()
 
+def get_next_letter(s: str) -> str:
+    if not s:
+        return s
+    last_char = s[-1]
+    if last_char.isalpha():
+        if last_char == 'z':
+            next_char = 'a'
+        elif last_char == 'Z':
+            next_char = 'A'
+        else:
+            next_char = chr(ord(last_char) + 1)
+        return s[:-1] + next_char
+    return s
+
+def get_current_letter(s: str) -> str:
+    if not s:
+        return s
+    return s[-1]
+
+def get_prev_letter(s: str) -> str:
+    if not s:
+        return s
+    last_char = s[-1]
+    if last_char.isalpha():
+        if last_char == 'a':
+            prev_char = 'z'
+        elif last_char == 'A':
+            prev_char = 'Z'
+        else:
+            prev_char = chr(ord(last_char) - 1)
+        return s[:-1] + prev_char
+    return s
+
 def handle_key(event):
     global listening, buffer, current_letter
-    
+
     ks = event.keysym
     ch = event.char
 
@@ -935,7 +948,7 @@ def handle_key(event):
 
     if not listening:
         return "break"
-    
+
     if ks == "Space":
         buffer += " "
         update_overlay_text(f"{buffer}{current_letter}")
@@ -955,15 +968,15 @@ def handle_key(event):
 
     # ⬆️ aktuellen Buchstaben übernehmen / hinzufügen
     if ks == "Up":
-        buffer += get_current_letter(label.cget("text"))                  # ← hier wird der aktuelle Buchstabe genommen
-        update_overlay_text(buffer + current_letter)  # zeigt nächsten Kandidaten direkt an
+        buffer += get_current_letter(label.cget("text"))
+        update_overlay_text(buffer + current_letter)
         return "break"
 
     # ⌫ Backspace
     if ks == "BackSpace":
-        if buffer:                                 # nur wenn was im Buffer ist
+        if buffer:
             buffer = buffer[:-1]
-        current_letter = "a"                       # Optional: zurücksetzen
+        current_letter = "a"
         update_overlay_text(buffer + current_letter if buffer else current_letter)
         return "break"
 
@@ -972,69 +985,34 @@ def handle_key(event):
         listening = False
         set_status(ORANGE)
         overlay.withdraw()
-        
-        # Wenn buffer leer ist → aktuellen Buchstaben trotzdem nehmen
+
         final_text = buffer + current_letter if buffer or current_letter else ""
-        
         ans = find_answer(final_text.strip())
+
         if ans:
             show_answer(ans)
         else:
             set_status(RED)
             status_win.after(600, lambda: set_status(ORANGE))
-        
+
         buffer = ""
         current_letter = "a"
         return "break"
 
     # Direkt einen Buchstaben tippen → sofort in Buffer übernehmen!
     if ch and ch.isprintable() and len(ch) == 1 and ch.isalpha():
-        buffer += ch.lower()                       # ← direkt hinzufügen!
-        current_letter = "a"                       # zurück auf a für den nächsten Buchstaben
+        buffer += ch.lower()
+        current_letter = "a"
         update_overlay_text(buffer + current_letter)
         return "break"
 
     return "break"
 
-def get_next_letter(s: str) -> str:
-    if not s:
-        return s
-    last_char = s[-1]
-    if last_char.isalpha():
-        if last_char == 'z':
-            next_char = 'a'
-        elif last_char == 'Z':
-            next_char = 'A'
-        else:
-            next_char = chr(ord(last_char) + 1)
-        return s[:-1] + next_char
-    return s
-
-def get_current_letter(s: str) -> str:
-    if not s:
-        return s
-    last_char = s[-1]
-    return last_char
-
-def get_prev_letter(s: str) -> str:
-    if not s:
-        return s
-    last_char = s[-1]
-    if last_char.isalpha():
-        if last_char == 'a':
-            prev_char = 'z'
-        elif last_char == 'A':
-            prev_char = 'Z'
-        else:
-            prev_char = chr(ord(last_char) - 1)
-        return s[:-1] + prev_char
-    return s
-
-def next_letter(event):     
+def next_letter(event):
     label.configure(text=get_next_letter(label.cget("text")))
     overlay.update_idletasks()
 
-def prev_letter(event):     
+def prev_letter(event):
     label.configure(text=get_prev_letter(label.cget("text")))
     overlay.update_idletasks()
 
@@ -1042,11 +1020,10 @@ capture_win.bind("<Right>", next_letter)
 capture_win.bind("<Left>", prev_letter)
 capture_win.bind("<KeyPress>", handle_key, add="+")
 
-
 set_status(ORANGE)
 
 capture_win.deiconify()
 capture_win.focus_force()
-capture_win.attributes("-alpha", 0.01)  # unsichtbar, aber aktiv
+capture_win.attributes("-alpha", 0.01)
 
 status_win.mainloop()
