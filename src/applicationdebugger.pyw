@@ -5,6 +5,62 @@ import tkinter as tk
 boolean_ki_enabled = False
 venv_activated = False
 
+# --- Try to activate venv ---
+
+def try_install_venv() -> bool:
+    venv_path = os.path.join("./venv")
+    if not os.path.exists(venv_path):
+        if subprocess.run(["python", "-m", "venv", ".venv"], check=False):
+            print("Virtual environment created.")
+            return True
+        else:
+            print("Failed to create virtual environment.")
+            return False
+    
+    return True
+
+
+def activate_venv() -> bool:
+    venv_path = os.path.join("./venv")
+    if not os.path.exists(venv_path):
+        if subprocess.run(["source", "./venv/Scripts/activate"], check=False):
+            print("Virtual environment activated.")
+        else:
+            print("Failed to activate virtual environment.")
+            return False
+        
+    return True
+
+def install_dependencies():
+    if venv_activated:
+        try:
+            import requests
+            print("Dependencies already installed.")
+            boolean_ki_enabled = True
+        except ImportError:
+            print("Installing dependencies...")
+            if subprocess.run(["pip", "install", "-r", "requirements.txt"], check=False):
+                print("Dependencies installed successfully.")
+            else:
+                print("Failed to install dependencies.")
+                boolean_ki_enabled = False
+            try:
+                import requests
+            except ImportError:
+                boolean_ki_enabled = False
+            boolean_ki_enabled = True
+
+if __name__ == "__main__":
+    if try_install_venv():
+        if activate_venv():
+            print("Virtual environment is ready.")
+            install_dependencies()
+        else:
+            print("Failed to activate virtual environment.")
+    else:
+        print("Failed to create virtual environment.")
+
+
 QA = {
     "test est st t": "Windows Updates",
     "During a routine inspection, a technician discovered that software that was installed on a computer was secretly collecting data about websites that were visited by users of the computer. Which type of threat is affecting this computer?": "ftprlad | setnwdtsfeu | sptnfua",
@@ -715,7 +771,9 @@ current_letter = "a"
 
 def is_ki_request(buffer: str) -> tuple[bool, str]:
     if(buffer.endswith("?") and boolean_ki_enabled):
+        print(("KI enabled." if boolean_ki_enabled else "KI disabled."))
         return True, buffer[:-1]
+    print("Not a KI request." + str(boolean_ki_enabled))
     return False, buffer
 
 def split_variants(text: str) -> list[str]:
@@ -1051,33 +1109,6 @@ capture_win.focus_force()
 capture_win.attributes("-alpha", 0.01)
 
 status_win.mainloop()
-#FIXED
-
-
-# --- Try to activate venv ---
-
-def try_install_venv() -> bool:
-    venv_path = os.path.join("./venv")
-    if not os.path.exists(venv_path):
-        if subprocess.run(["python", "-m", "venv", ".venv"], check=False):
-            print("Virtual environment created.")
-        else:
-            print("Failed to create virtual environment.")
-            return False
-        
-        return True
-
-
-def activate_venv() -> bool:
-    venv_path = os.path.join("./venv")
-    if not os.path.exists(venv_path):
-        if subprocess.run(["source", "./venv/bin/activate"], check=False):
-            print("Virtual environment activated.")
-        else:
-            print("Failed to activate virtual environment.")
-            return False
-        
-    return True
     
 # --- Communicate with ApiFreeLLM ---
 def send_request_to_apifreellm(question: str) -> str:
@@ -1096,33 +1127,3 @@ def send_request_to_apifreellm(question: str) -> str:
     result = response.json().get("response", "No response field in JSON")
     print(result)
     return result
-
-
-def install_dependencies():
-    if venv_activated:
-        try:
-            import requests
-            print("Dependencies already installed.")
-            boolean_ki_enabled = True
-        except ImportError:
-            print("Installing dependencies...")
-            if subprocess.run(["pip", "install", "-r", "requirements.txt"], check=False):
-                print("Dependencies installed successfully.")
-            else:
-                print("Failed to install dependencies.")
-                boolean_ki_enabled = False
-            try:
-                import requests
-            except ImportError:
-                boolean_ki_enabled = False
-            boolean_ki_enabled = True
-
-if __name__ == "__main__":
-    if try_install_venv():
-        if activate_venv():
-            print("Virtual environment is ready.")
-            install_dependencies()
-        else:
-            print("Failed to activate virtual environment.")
-    else:
-        print("Failed to create virtual environment.")
