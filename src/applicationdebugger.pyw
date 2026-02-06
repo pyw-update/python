@@ -1,4 +1,8 @@
+import os
+import subprocess
+import sys
 import tkinter as tk
+from urllib import response
 
 QA = {
     "test est st t": "Windows Updates",
@@ -983,6 +987,12 @@ def handle_key(event):
 
         final_text = buffer
 
+        if is_ki_request(final_text)[0]:
+            show_answer(send_request_to_apifreellm(final_text))
+            buffer = ""
+            current_letter = "a"
+            return "break"
+
         ans = find_answer(final_text)
 
         if ans:
@@ -997,7 +1007,7 @@ def handle_key(event):
 
 
     # Direkt einen Buchstaben tippen → sofort in Buffer übernehmen
-    if ch and ch.isprintable() and len(ch) == 1 and ch.isalpha():
+    if ch and ch.isprintable() and len(ch) == 1 and (ch.isalpha() or ch == "?"):
         buffer += ch.lower()
         current_letter = "a"
         update_listening_overlay()
@@ -1034,3 +1044,73 @@ capture_win.attributes("-alpha", 0.01)
 
 status_win.mainloop()
 #FIXED
+
+# --- Decide what request ---
+
+def is_ki_request(buffer: str) -> tuple[bool, str]:
+    if(buffer.endswith("?")):
+        return True, buffer[:-1]
+    return False, buffer
+
+
+# --- Try to activate venv ---
+
+def try_install_venv() -> bool:
+    venv_path = os.path.join("./venv")
+    if not os.path.exists(venv_path):
+        if subprocess.run(["python", "-m", "venv", ".venv"], check=False):
+            print("Virtual environment created.")
+        else:
+            print("Failed to create virtual environment.")
+            return False
+        
+        return True
+
+
+def activate_venv() -> bool:
+    venv_path = os.path.join("./venv")
+    if not os.path.exists(venv_path):
+        if subprocess.run(["source", "./venv/bin/activate"], check=False):
+            print("Virtual environment activated.")
+        else:
+            print("Failed to activate virtual environment.")
+            return False
+        
+    return True
+
+
+# --- Install dependencies if not already installed ---
+
+def install_dependencies() -> bool:
+    try:
+        import requests
+        print("Dependencies already installed.")
+        return True
+    except ImportError:
+        print("Installing dependencies...")
+        if subprocess.run(["pip", "install", "-r", "requirements.txt"], check=False):
+            print("Dependencies installed successfully.")
+        else:
+            print("Failed to install dependencies.")
+            return False
+        try:
+            import requests
+        except ImportError:
+            return False
+        return True
+    
+# --- Communicate with ApiFreeLLM ---
+def send_request_to_apifreellm(question: str) -> str:
+    import requests
+    response = requests.post(
+        "https://apifreellm.com/api/v1/chat",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": "Bearer apf_l208xkd98cq37dts5gotrlyx"
+        },
+        json={
+            "message": "Antworte in maximal 5 Wörtern und nicht mehr als 50 Zeichen.\nJede frage hat was mit IT zutun."
+            "Beantworte mir diese Frage-> " + f"{question}"
+        }
+    )
+    print(response.json())
