@@ -968,7 +968,6 @@ def send_request_to_apifreellm(question: str) -> str:
         },
         json={
             "message": "Antworte in maximal 5 Wörtern und nicht mehr als 50 Zeichen.\nJede frage hat was mit IT zutun."
-            "Benutze keine Füllwörter wie 'Die Antwort ist' oder 'Es könnte sein'.\nWenn du die Antwort nicht kennst, schreibe 'Keine Antwort gefunden'.\n"
             "Benutze keine Emojis oder Sonderzeichen.\nAntworten müssen auf Deutsch sein.\n"
             "Benutze keine Textformattierung wie Aufzählungen oder Absätze.\n"
             "Beantworte mir diese Frage-> " + f"{question}"
@@ -1058,7 +1057,7 @@ def handle_key(event):
 
 
     # Direkt einen Buchstaben tippen → sofort in Buffer übernehmen
-    if ch and ch.isprintable() and len(ch) == 1 and (ch.isalpha() or ch == "?" or ch.isdecimal()):
+    if ch and ch.isprintable() and len(ch) == 1:
         buffer += ch.lower()
         current_letter = "a"
         update_listening_overlay()
