@@ -944,10 +944,12 @@ def handle_key(event):
     if not listening:
         return "break"
 
-    if ks == "Space":
+    # SPACE
+    if ks in ("space", "Space") or ch == " ":
         buffer += " "
         update_listening_overlay()
         return "break"
+
 
     # ➡️ nächster Buchstabe (Kandidat)
     if ks == "Right":
@@ -976,13 +978,14 @@ def handle_key(event):
         update_listening_overlay()
         return "break"
 
-    # ; = Suche / abschicken
-    if ch == ";" or ks == "semicolon":
+    # ; = Suche / abschicken (nicht in Text übernehmen!)
+    if ks == "semicolon" or ch == ";":
         listening = False
         set_status(ORANGE)
         overlay.withdraw()
 
-        final_text = (buffer + current_letter).strip()
+        final_text = buffer + current_letter   # kein strip nötig
+
         ans = find_answer(final_text)
 
         if ans:
@@ -994,6 +997,7 @@ def handle_key(event):
         buffer = ""
         current_letter = "a"
         return "break"
+
 
     # Direkt einen Buchstaben tippen → sofort in Buffer übernehmen
     if ch and ch.isprintable() and len(ch) == 1 and ch.isalpha():
