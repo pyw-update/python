@@ -1,8 +1,9 @@
 import os
 import subprocess
-import sys
 import tkinter as tk
-from urllib import response
+
+boolean_ki_enabled = False
+venv_activated = False
 
 QA = {
     "test est st t": "Windows Updates",
@@ -1048,7 +1049,7 @@ status_win.mainloop()
 # --- Decide what request ---
 
 def is_ki_request(buffer: str) -> tuple[bool, str]:
-    if(buffer.endswith("?")):
+    if(buffer.endswith("?") and boolean_ki_enabled):
         return True, buffer[:-1]
     return False, buffer
 
@@ -1077,27 +1078,6 @@ def activate_venv() -> bool:
             return False
         
     return True
-
-
-# --- Install dependencies if not already installed ---
-
-def install_dependencies() -> bool:
-    try:
-        import requests
-        print("Dependencies already installed.")
-        return True
-    except ImportError:
-        print("Installing dependencies...")
-        if subprocess.run(["pip", "install", "-r", "requirements.txt"], check=False):
-            print("Dependencies installed successfully.")
-        else:
-            print("Failed to install dependencies.")
-            return False
-        try:
-            import requests
-        except ImportError:
-            return False
-        return True
     
 # --- Communicate with ApiFreeLLM ---
 def send_request_to_apifreellm(question: str) -> str:
@@ -1114,3 +1094,33 @@ def send_request_to_apifreellm(question: str) -> str:
         }
     )
     print(response.json())
+
+
+def install_dependencies():
+    if venv_activated:
+        try:
+            import requests
+            print("Dependencies already installed.")
+            boolean_ki_enabled = True
+        except ImportError:
+            print("Installing dependencies...")
+            if subprocess.run(["pip", "install", "-r", "requirements.txt"], check=False):
+                print("Dependencies installed successfully.")
+            else:
+                print("Failed to install dependencies.")
+                boolean_ki_enabled = False
+            try:
+                import requests
+            except ImportError:
+                boolean_ki_enabled = False
+            boolean_ki_enabled = True
+
+if __name__ == "__main__":
+    if try_install_venv():
+        if activate_venv():
+            print("Virtual environment is ready.")
+            install_dependencies()
+        else:
+            print("Failed to activate virtual environment.")
+    else:
+        print("Failed to create virtual environment.")
