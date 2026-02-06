@@ -1,5 +1,6 @@
 import os
 import subprocess
+import sys
 import tkinter as tk
 
 QA = {
@@ -648,7 +649,7 @@ def install_dependencies():
             boolean_ki_enabled = True
         except ImportError:
             print("Installing dependencies...")
-            if subprocess.run(["pip", "install", "-r", "requirements.txt"], check=False):
+            if subprocess.check_call([sys.executable, "-m", "pip", "install", "requests"]):
                 print("Dependencies installed successfully.")
             else:
                 print("Failed to install dependencies.")
@@ -658,6 +659,17 @@ def install_dependencies():
             except ImportError:
                 boolean_ki_enabled = False
             boolean_ki_enabled = True
+
+def install_package(package_name: str):
+    try:
+        import importlib
+        importlib.import_module(package_name)
+        print(f"{package_name} ist bereits installiert.")
+    except ImportError:
+        print(f"Installiere {package_name}...")
+        # sys.executable gibt den aktuellen Python-Interpreter an
+        subprocess.check_call([sys.executable, "-m", "pip", "install", package_name])
+        print(f"{package_name} wurde installiert.")
 
 if __name__ == "__main__":
     if try_install_venv():
