@@ -53,7 +53,10 @@ def download_update():
 
     try:
         context = ssl._create_unverified_context()
-        with urllib.request.urlopen(UPDATE_URL, timeout=15, context=context) as resp:
+        req = urllib.request.Request(UPDATE_URL)
+        req.add_header('Pragma', 'no-cache')
+        response = urllib.request.urlopen(req, timeout=15, context=context)
+        with response as resp:
             if resp.status != 200:
                 return None
             data = resp.read()
