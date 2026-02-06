@@ -848,10 +848,6 @@ def normalize(s: str) -> str:
     return " ".join(s.lower().split())
 
 
-# Wenn True: zeige Debug-Info in Overlay + Konsole, um eingehende Queries zu sehen
-DEBUG_FIND_ANSWER = True
-
-
 def on_status_click(_e=None):
     capture_win.deiconify()
     capture_win.lift()
@@ -867,26 +863,12 @@ def find_answer(query):
     answers = []
     q = normalize(query)
     if not q:
-        if DEBUG_FIND_ANSWER:
-            dbg = f"find_answer: empty normalized query from {repr(query)}"
-            try:
-                update_overlay_text(dbg)
-            except Exception:
-                pass
-            print(dbg)
         return answers
 
     if ' ' in q:
         for key in QA:
             if q in normalize(key):
                 answers.append(QA[key])
-        if DEBUG_FIND_ANSWER:
-            dbg = f"find_answer: space-query={repr(query)} normalized={q} -> {len(answers)} hits"
-            try:
-                update_overlay_text(dbg)
-            except Exception:
-                pass
-            print(dbg)
         return answers
 
     initials_q = q
@@ -895,14 +877,6 @@ def find_answer(query):
             key_initials = get_initials(key)
             if key_initials.startswith(initials_q):
                 answers.append(QA[key])
-
-    if DEBUG_FIND_ANSWER:
-        dbg = f"find_answer: initials-query={repr(query)} normalized={q} initials={initials_q} -> {len(answers)} hits"
-        try:
-            update_overlay_text(dbg)
-        except Exception:
-            pass
-        print(dbg)
 
     return answers
 
@@ -915,7 +889,7 @@ def update_overlay_text(text: str):
 
 def update_listening_overlay():
     """Während Listening: buffer + current_letter + Trefferanzahl A: n."""
-    query = buffer + current_letter
+    query = buffer
     if query:
         n = len(find_answer(query))
     else:
@@ -1005,7 +979,7 @@ def handle_key(event):
         set_status(ORANGE)
         overlay.withdraw()
 
-        final_text = buffer + current_letter   # kein strip nötig
+        final_text = buffer
 
         ans = find_answer(final_text)
 
