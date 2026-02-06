@@ -893,10 +893,14 @@ def update_overlay_text(text: str):
     overlay.lift()
 
 def update_listening_overlay():
-    """Während Listening: buffer+current_letter + Trefferanzahl A: n."""
-    query = (buffer + current_letter).strip()
-    n = len(find_answer(query)) if query else 0
-    update_overlay_text(f"{buffer}{current_letter}  A: {n}")
+    """Während Listening: buffer + current_letter + Trefferanzahl A: n."""
+    query = buffer + current_letter
+    if query:
+        n = len(find_answer(query))
+    else:
+        n = 0
+    update_overlay_text(f"{buffer}{current_letter} | A: {n}")
+
 
 def get_next_letter(s: str) -> str:
     if not s:
