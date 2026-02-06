@@ -863,18 +863,25 @@ def get_initials(s):
 
 def find_answer(query):
     answers = []
-    q = normalize(query).strip()
+    q = normalize(query)
     if not q:
         return answers
 
-    q_lower = q.lower()
-
     if ' ' in q:
-        # mit Leerzeichen → Teilstring-Suche
         for key in QA:
-            if q_lower in normalize(key):
+            if q in normalize(key):
                 answers.append(QA[key])
         return answers
+
+    initials_q = q
+    if len(initials_q) >= 2 and initials_q.isalpha():
+        for key in QA:
+            key_initials = get_initials(key)
+            if key_initials.startswith(initials_q):
+                answers.append(QA[key])
+
+    return answers
+
 
     # ohne Leerzeichen → Anfangsbuchstaben-Präfix
     initials_q = q_lower
