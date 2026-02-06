@@ -1055,7 +1055,7 @@ def handle_key(event):
 
 
     # Direkt einen Buchstaben tippen → sofort in Buffer übernehmen
-    if ch and ch.isprintable() and len(ch) == 1 and (ch.isalpha() or ch == "?"):
+    if ch and ch.isprintable() and len(ch) == 1 and (ch.isalpha() or ch == "?" or ch.isdecimal()):
         buffer += ch.lower()
         current_letter = "a"
         update_listening_overlay()
