@@ -2,6 +2,10 @@ import os
 import subprocess
 import sys
 import tkinter as tk
+import os
+import subprocess
+import sys
+import tkinter as tk
 
 QA = {
     "test est st t": "Windows Updates",
@@ -615,6 +619,18 @@ BACKGROUND_HEIGHT = 10
 boolean_ki_enabled = False
 venv_activated = False
 
+def activate_ki():
+    global boolean_ki_enabled
+    try:
+        import requests
+        boolean_ki_enabled = True
+        print("KI verfügbar!")
+    except ImportError:
+        boolean_ki_enabled = False
+        print("KI nicht verfügbar!")
+
+
+activate_ki()
 
 root = tk.Tk()
 root.withdraw()
