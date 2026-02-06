@@ -690,37 +690,88 @@ def split_variants(text: str) -> list[str]:
 # Angepasste show_answer Funktion
 # ────────────────────────────────────────────────
 
-def show_answer(text: str):
+def show_answer(answers):
+    """
+    answers kann sein:
+      - list[str]: jede Zeile = eine Variante/Antwort
+      - str: wird als eine Variante behandelt
+    """
     global current_variants, current_variant_index
-    
-    current_variants = split_variants(text)
+
+    # --- Varianten vorbereiten ---
+    if answers is None:
+        current_variants = []
+    elif isinstance(answers, list):
+        # Liste direkt als Varianten nutzen (leere/whitespace Einträge filtern)
+        current_variants = [str(a).strip() for a in answers if str(a).strip()]
+    else:
+        # Fallback: einzelner String/Objekt -> eine Variante
+        s = str(answers).strip()
+        current_variants = [s] if s else []
+
     current_variant_index = 0
-    
+
     if not current_variants:
         label.configure(text="(keine Antwort)", anchor="w", fg=RED)
         overlay.update_idletasks()
         return
-    
+
     # Erste Variante anzeigen
-    update_label_with_current_variant()
-    
+    update_list_label_with_current_variant()
+
     # Position neu berechnen & sichtbar machen
     sw = overlay.winfo_screenwidth()
     sh = overlay.winfo_screenheight()
     wrap = int(sw * MAX_WIDTH_RATIO)
     label.configure(wraplength=wrap)
     overlay.update_idletasks()
-    
+
     w = label.winfo_reqwidth()
     h = label.winfo_reqheight()
     background_width = w if BACKGROUND_WIDTH is None else BACKGROUND_WIDTH
     background_height = h if BACKGROUND_HEIGHT is None else BACKGROUND_HEIGHT
-    
+
     x, y = compute_position(sw, sh, background_width, background_height)
     overlay.geometry(f"{background_width}x{background_height}+{x}+{y}")
     overlay.deiconify()
     overlay.lift()
     label.focus_force()
+
+
+def update_list_label_with_current_variant():
+    """Zeigt die aktuelle Variante an."""
+    if not current_variants:
+        label.configure(text="(keine Antwort)", anchor="w", fg=TEXT_COLOR)
+        return
+
+    t = current_variants[current_variant_index]
+    label.configure(text=t, anchor="w", fg=TEXT_COLOR)  # fg anpassen wie du willst
+    overlay.update_idletasks()
+
+
+def show_next_variant(event=None):
+    """ENTER -> nächste Antwort; am Ende wieder von vorne (oder ausblenden)."""
+    global current_variant_index
+
+    if not current_variants:
+        return "break"
+
+    current_variant_index += 1
+
+    # Option A: zyklisch
+    if current_variant_index >= len(current_variants):
+        current_variant_index = 0
+
+    update_label_with_current_variant()
+    label.focus_force()
+    return "break"
+
+
+# EINMAL beim Setup binden (z.B. nach Erstellung von overlay/label):
+# Wichtig: bind auf overlay ODER label; ich würde overlay nehmen.
+overlay.bind("<Return>", show_next_variant)
+overlay.bind("<KP_Enter>", show_next_variant)  # Numpad Enter
+
 
 # ────────────────────────────────────────────────
 # Label mit aktueller Variante aktualisieren
@@ -771,9 +822,9 @@ def next_variant(event=None):
 # Event-Bindings hinzufügen (am besten nach overlay = tk.Toplevel() )
 # ────────────────────────────────────────────────
 
-overlay.bind("<Shift_R>", exit)        # Rechtsklick → nächste Variante
-overlay.bind("<Right>", next_variant)            # Pfeil rechts
-# overlay.bind("<Return>", next_variant)           # Enter
+overlay.bind("<Shift_R>", exit)                 # Rechtsklick → nächste Variante
+overlay.bind("<Right>", next_variant)           # Pfeil rechts
+# overlay.bind("<Return>", next_variant)        # Enter
 
 # Optional: Rechtsklick → zurück (oder schließen)
 def prev_variant(event=None):
@@ -820,9 +871,10 @@ def get_initials(s):
     return ''.join(w[0].lower() for w in words)
 
 def find_answer(query):
+    answers = []
     q = normalize(query).strip()
     if not q:
-        return None
+        return answers
 
     q_lower = q.lower()
 
@@ -830,8 +882,8 @@ def find_answer(query):
         # mit Leerzeichen → Teilstring-Suche
         for key in QA:
             if q_lower in normalize(key):
-                return QA[key]
-        return None
+                answers.append(QA[key])
+        return answers
 
     # ohne Leerzeichen → Anfangsbuchstaben-Präfix
     initials_q = q_lower
@@ -840,9 +892,9 @@ def find_answer(query):
         for key in QA:
             key_initials = get_initials(key)
             if key_initials.startswith(initials_q):
-                return QA[key]          # ← erste passende Frage
+                answers.append(QA[key])          # ← erste passende Frage
 
-    return None
+    return answers
 
 def update_overlay_text(text: str):
     label.configure(text=text)
