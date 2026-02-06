@@ -855,6 +855,7 @@ def on_status_click(_e=None):
     capture_win.focus_force()
 
 status_win.bind("<Button-1>", on_status_click)
+status_win.bind("<Shift_R>", lambda e=None: root.quit())
 
 def get_initials(s):
     words = [w for w in s.split() if w and w[0].isalpha()]
