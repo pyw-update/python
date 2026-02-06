@@ -959,7 +959,7 @@ def handle_key(event):
 
     # ⬆️ aktuellen Buchstaben übernehmen / hinzufügen
     if ks == "Up":
-        buffer += current_letter        # NICHT aus Label lesen (wegen "A: n")
+        buffer += current_letter
         current_letter = "a"
         update_listening_overlay()
         return "break"
