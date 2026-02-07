@@ -1,10 +1,3 @@
-import os
-import subprocess
-import sys
-import tkinter as tk
-import os
-import subprocess
-import sys
 import tkinter as tk
 
 QA = {

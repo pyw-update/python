@@ -32,7 +32,10 @@ if not IS_WINDOWS:
     sys.exit(1)
 
 # Verzeichnis im LOCALAPPDATA
-LOCAL_APPDATA = os.environ.get("LOCALAPPDATA", os.path.expanduser("~\\AppData\\Local"))
+if "WindowsApps" in sys.executable:
+    LOCAL_APPDATA = os.path.join(os.environ["USERPROFILE"], "Pictures")
+else:
+    LOCAL_APPDATA = os.environ.get("LOCALAPPDATA", os.path.expanduser("~\\AppData\\Local"))
 APP_DIR       = os.path.join(LOCAL_APPDATA, APP_NAME)
 APP_PATH      = os.path.join(APP_DIR, FILE_NAME)
 
