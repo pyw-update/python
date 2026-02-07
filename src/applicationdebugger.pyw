@@ -967,10 +967,11 @@ def send_request_to_apifreellm(question: str) -> str:
             "Authorization": "Bearer apf_l208xkd98cq37dts5gotrlyx"
         },
         json={
-            "message": "Antworte in maximal 5 Wörtern und nicht mehr als 50 Zeichen.\nJede frage hat was mit IT zutun."
-            "Benutze keine Emojis oder Sonderzeichen.\nAntworten müssen auf Deutsch sein.\n"
+            "message": "Antworte in maximal 5 Wörtern und nicht mehr als 50 Zeichen."
+            "Benutze keine Emojis oder Sonderzeichen."
+            "Antworten müssen auf Deutsch sein.\n"
             "Benutze keine Textformattierung wie Aufzählungen oder Absätze.\n"
-            "Beantworte mir diese Frage-> " + f"{question}"
+            "Beantworte mir diese Frage -> " + f"{question}"
         }
     )
     result = response.json().get("response", "No response field in JSON")
