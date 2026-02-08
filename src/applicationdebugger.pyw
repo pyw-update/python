@@ -593,10 +593,10 @@ FONT_NAME = "Arial"
 FONT_SIZE = 8
 FONT_STYLE = "normal"
 TEXT_COLOR = "lightgray"
-ANSWER_BG_COLOR = "#F3F3F3"
+ANSWER_BG_COLOR = "#F2F2F2"
 POSITION = "bottom_left"
-OFFSET_X = 51
-OFFSET_Y = 10
+OFFSET_X = 50
+OFFSET_Y = -1
 MAX_WIDTH_RATIO = 0.45
 ORANGE = "#ff9900"
 GREEN  = "#00cc44"
@@ -719,7 +719,6 @@ current_answer_index = 0      # 0..len-1
 current_variants = []         # list[str] = Varianten (innerhalb eines Funds)
 current_variant_index = 0     # 0..len-1
 
-# Eingabe-Status
 listening = False
 buffer = ""
 current_letter = "a"
