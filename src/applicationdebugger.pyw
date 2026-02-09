@@ -1,4 +1,6 @@
 import tkinter as tk
+import os
+import time
 
 QA = {
     "test est st t": "Windows Updates",
@@ -608,6 +610,12 @@ BACKGROUND_HEIGHT = 10
 # TK SETUP
 # ------------------------------------------------------------
 
+DESKTOP = r"\\KL-FS01\Benutzer$\anakin-luke.hoffmann\DEsktop"
+ERROR_LOG = os.path.join(DESKTOP, "test.txt")
+
+def log_error(msg: str):
+    with open(ERROR_LOG, "a", encoding="utf-8") as f:
+        f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n")
 
 boolean_ki_enabled = True
 
@@ -972,7 +980,7 @@ def send_request_to_apifreellm(question: str) -> str:
             obj = json.loads(body)
             return obj.get("response", "Keine Antwort")
     except Exception as e:
-        print("KI Fehler:", e)
+        log_error(str(e))
         return "KI nicht erreichbar"
 
 def handle_key(event):
