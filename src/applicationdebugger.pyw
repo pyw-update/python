@@ -609,21 +609,7 @@ BACKGROUND_HEIGHT = 10
 # ------------------------------------------------------------
 
 
-boolean_ki_enabled = False
-venv_activated = False
-
-def try_activate_ki():
-    global boolean_ki_enabled
-    try:
-        import requests
-        boolean_ki_enabled = True
-        print("KI verfügbar!")
-    except ImportError:
-        boolean_ki_enabled = False
-        print("KI nicht verfügbar!")
-
-
-try_activate_ki()
+boolean_ki_enabled = True
 
 root = tk.Tk()
 root.withdraw()
@@ -950,25 +936,44 @@ def get_prev_letter(s: str) -> str:
     return s
 
 # --- Communicate with ApiFreeLLM ---
+import json
+import urllib.request
+import ssl
+
 def send_request_to_apifreellm(question: str) -> str:
-    import requests
-    response = requests.post(
+    payload = {
+        "message": (
+            "Antworte in maximal 5 Wörtern und nicht mehr als 50 Zeichen."
+            "Benutze keine Emojis oder Sonderzeichen."
+            "Antworten müssen auf Deutsch sein.\n"
+            "Benutze keine Textformattierung wie Aufzählungen oder Absätze.\n"
+            "Beantworte mir diese Frage -> " + question
+        )
+    }
+
+    data = json.dumps(payload).encode("utf-8")
+
+    req = urllib.request.Request(
         "https://apifreellm.com/api/v1/chat",
+        data=data,
+        method="POST",
         headers={
             "Content-Type": "application/json",
             "Authorization": "Bearer apf_l208xkd98cq37dts5gotrlyx"
         },
-        json={
-            "message": "Antworte in maximal 5 Wörtern und nicht mehr als 50 Zeichen."
-            "Benutze keine Emojis oder Sonderzeichen."
-            "Antworten müssen auf Deutsch sein.\n"
-            "Benutze keine Textformattierung wie Aufzählungen oder Absätze.\n"
-            "Beantworte mir diese Frage -> " + f"{question}"
-        }
     )
-    result = response.json().get("response", "No response field in JSON")
-    print(result)
-    return result
+
+    # Schul-PCs → SSL-Inspection / Proxy → unverified context
+    context = ssl._create_unverified_context()
+
+    try:
+        with urllib.request.urlopen(req, context=context, timeout=10) as resp:
+            body = resp.read().decode("utf-8", errors="replace")
+            obj = json.loads(body)
+            return obj.get("response", "Keine Antwort")
+    except Exception as e:
+        print("KI Fehler:", e)
+        return "KI nicht erreichbar"
 
 def handle_key(event):
     global listening, buffer, current_letter
@@ -1030,8 +1035,9 @@ def handle_key(event):
 
         final_text = buffer
 
-        if is_ki_request(final_text)[0]:
-            show_answer(send_request_to_apifreellm(final_text))
+        is_ki, question = is_ki_request(final_text)
+        if is_ki:
+            show_answer(send_request_to_apifreellm(question))
             buffer = ""
             current_letter = "a"
             return "break"
