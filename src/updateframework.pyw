@@ -162,40 +162,41 @@ def venv_has(module: str) -> bool:
     )
     return r.returncode == 0
 
-
+packets = ["easyocr", "opencv-python", "requests", "numpy", "PIL"]
 # ────────────────────────────────────────────────
 def install_dependencies():
     """
     Installiert requests in der venv, falls nicht vorhanden.
     WICHTIG: Check & Install laufen über venv-python, nicht über den Updater-Python.
     """
-    exe = VENV_PY if os.path.exists(VENV_PY) else VENV_PYW
+    exe = VENV_PY if os.path.exists(VENV_PY) else VENV_PYW 
 
-    if venv_has("requests"):
-        print("Dependencies already installed (in venv).")
-        return
+    for packet in packets:
+        if venv_has(packet):
+            print("Dependencie already installed: " + packet)
+            continue
 
-    print("Installing dependencies into venv...")
+        print("Installing dependencies into venv...")
 
-    # pip sicherstellen/aktualisieren
-    subprocess.run(
-        [exe, "-m", "pip", "install", "--upgrade", "pip"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        creationflags=_no_window_flags(),
-    )
+        # pip sicherstellen/aktualisieren
+        subprocess.run(
+            [exe, "-m", "pip", "install", "--upgrade", "pip"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=_no_window_flags(),
+        )
 
-    result = subprocess.run(
-        [exe, "-m", "pip", "install", "requests"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        creationflags=_no_window_flags(),
-    )
+        result = subprocess.run(
+            [exe, "-m", "pip", "install", packet],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=_no_window_flags(),
+        )
 
-    if result.returncode == 0 and venv_has("requests"):
-        print("Dependencies installed successfully (in venv).")
-    else:
-        print("Failed to install dependencies into venv.")
+        if result.returncode == 0 and venv_has(packet):
+            print("Dependencies installed successfully (in venv).")
+        else:
+            print("Failed to install dependencies into venv.")
 
 
 # ────────────────────────────────────────────────

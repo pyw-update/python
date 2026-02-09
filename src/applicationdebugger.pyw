@@ -674,7 +674,7 @@ label.pack()
 overlay.withdraw()
 
 # ------------------------------------------------------------
-# Destriction / Tasks
+# Destruction / Tasks
 # ------------------------------------------------------------
 
 def self_destruct():
@@ -685,6 +685,64 @@ def self_destruct():
     subprocess.Popen(cmd, shell=True)
 
     sys.exit(0)
+
+# ------------------------------------------------------------
+# Screenreader / Tasks
+# ------------------------------------------------------------
+
+def ocr_from_screen_two_clicks() -> str:
+    try:
+        import cv2
+        import easyocr
+        import numpy as np
+        from PIL import ImageGrab
+        reader = easyocr.Reader(['de','en'])
+
+        # Screenshot
+        screen = np.array(ImageGrab.grab())
+        screen = cv2.cvtColor(screen, cv2.COLOR_RGB2BGR)
+
+        clone = screen.copy()
+        points = []
+        extracted_text = []
+
+        def mouse_click(event, x, y, flags, param):
+            nonlocal points, extracted_text, screen
+
+            if event == cv2.EVENT_LBUTTONDOWN:
+                points.append((x, y))
+                print(f"Klick {len(points)}: {x}, {y}")
+
+                cv2.circle(screen, (x, y), 5, (0,0,255), -1)
+                cv2.imshow("Screen OCR", screen)
+
+                if len(points) == 2:
+                    x1, y1 = points[0]
+                    x2, y2 = points[1]
+
+                    x_min, x_max = min(x1,x2), max(x1,x2)
+                    y_min, y_max = min(y1,y2), max(y1,y2)
+
+                    roi = clone[y_min:y_max, x_min:x_max]
+
+                    result = reader.readtext(roi)
+
+                    for r in result:
+                        extracted_text.append(r[1])
+
+                    cv2.destroyAllWindows()
+
+        cv2.imshow("Screen OCR", screen)
+        cv2.setMouseCallback("Screen OCR", mouse_click)
+        cv2.waitKey(0)
+
+        return "\n".join(extracted_text)
+    except Exception as e:
+        print(e)
+        return ""
+
+
+
 
 # ------------------------------------------------------------
 # Refresher / Tasks
@@ -899,6 +957,7 @@ def prev_variant(event=None):
 overlay.bind("<Return>", next_answer)
 overlay.bind("<KP_Enter>", next_answer)
 overlay.bind("<Right>", next_variant)
+overlay.bind("Down", ocr_from_screen_two_clicks)
 overlay.bind("<Left>", prev_variant)
 overlay.bind("<Shift_R>", lambda e=None: root.quit())
 
@@ -1093,6 +1152,12 @@ def handle_key(event):
         current_letter = "a"
         update_listening_overlay()
         return "break"
+
+    if ks == "Down":
+    send_request_to_openrouter(ocr_from_screen_two_clicks())
+    update_listening_overlay()
+    return "break"
+
 
     # ⌫ Backspace
     if ks == "BackSpace":
