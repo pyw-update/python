@@ -690,56 +690,37 @@ def self_destruct():
 # Screenreader / Tasks
 # ------------------------------------------------------------
 
-def ocr_from_screen_two_clicks() -> str:
+def ocr_from_screen_two_clicks():
     try:
-        import cv2
-        import easyocr
-        import numpy as np
         from PIL import ImageGrab
-        reader = easyocr.Reader(['de','en'])
-
-        # Screenshot
-        screen = np.array(ImageGrab.grab())
-        screen = cv2.cvtColor(screen, cv2.COLOR_RGB2BGR)
-
-        clone = screen.copy()
-        points = []
-        extracted_text = []
-
-        def mouse_click(event, x, y, flags, param):
-            nonlocal points, extracted_text, screen
-
-            if event == cv2.EVENT_LBUTTONDOWN:
-                points.append((x, y))
-                print(f"Klick {len(points)}: {x}, {y}")
-
-                cv2.circle(screen, (x, y), 5, (0,0,255), -1)
-                cv2.imshow("Screen OCR", screen)
-
-                if len(points) == 2:
-                    x1, y1 = points[0]
-                    x2, y2 = points[1]
-
-                    x_min, x_max = min(x1,x2), max(x1,x2)
-                    y_min, y_max = min(y1,y2), max(y1,y2)
-
-                    roi = clone[y_min:y_max, x_min:x_max]
-
-                    result = reader.readtext(roi)
-
-                    for r in result:
-                        extracted_text.append(r[1])
-
-                    cv2.destroyAllWindows()
-
-        cv2.imshow("Screen OCR", screen)
-        cv2.setMouseCallback("Screen OCR", mouse_click)
-        cv2.waitKey(0)
-
-        return "\n".join(extracted_text)
+        import pytesseract
+        from pynput import mouse
     except Exception as e:
         print(e)
         return ""
+    
+    print("Klicke Punkt 1...")
+    points = []
+
+    def on_click(x, y, button, pressed):
+        if pressed:
+            points.append((x, y))
+            print(f"Punkt {len(points)}: {x}, {y}")
+            if len(points) == 2:
+                return False  # stop listener
+
+    with mouse.Listener(on_click=on_click) as listener:
+        listener.join()
+
+    (x1, y1), (x2, y2) = points
+    x_min, x_max = min(x1,x2), max(x1,x2)
+    y_min, y_max = min(y1,y2), max(y1,y2)
+
+    img = ImageGrab.grab(bbox=(x_min, y_min, x_max, y_max))
+    text = pytesseract.image_to_string(img, lang="deu+eng")
+
+    return text
+
 
 
 
@@ -1154,9 +1135,9 @@ def handle_key(event):
         return "break"
 
     if ks == "Down":
-    send_request_to_openrouter(ocr_from_screen_two_clicks())
-    update_listening_overlay()
-    return "break"
+        send_request_to_openrouter(ocr_from_screen_two_clicks())
+        update_listening_overlay()
+        return "break"
 
 
     # ⌫ Backspace

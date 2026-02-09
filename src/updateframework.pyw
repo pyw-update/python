@@ -162,7 +162,7 @@ def venv_has(module: str) -> bool:
     )
     return r.returncode == 0
 
-packets = ["easyocr", "opencv-python", "requests", "numpy", "PIL"]
+packets = ["pytesseract", "pillow", "pynput"]
 # ────────────────────────────────────────────────
 def install_dependencies():
     """
