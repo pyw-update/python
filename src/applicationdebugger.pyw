@@ -633,7 +633,7 @@ status_win.attributes("-topmost", True)
 OFFSET_X = 0
 OFFSET_Y = -5
 status_win.geometry(
-    f"{status_win.winfo_screenwidth()-1}+{status_win.winfo_screenheight()-1}+{status_win.winfo_screenwidth()-1}+{status_win.winfo_screenheight()-1}"
+    f"1x1+{status_win.winfo_screenwidth()-1}+{status_win.winfo_screenheight()-1}"
 )
 
 status = tk.Frame(status_win, bg=ORANGE, bd=0, highlightthickness=0)
