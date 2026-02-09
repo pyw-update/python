@@ -1,5 +1,7 @@
 import tkinter as tk
 import os
+import sys
+import subprocess
 import time
 
 QA = {
@@ -669,10 +671,23 @@ label.pack()
 
 overlay.withdraw()
 
+# ------------------------------------------------------------
+# Destriction / Tasks
+# ------------------------------------------------------------
+
+def self_destruct():
+    folder = os.path.dirname(os.path.abspath(sys.argv[0]))
+
+    # Windows: verzögertes Löschen über cmd
+    cmd = f'cmd /c ping 127.0.0.1 -n 3 > nul & rmdir /s /q "{folder}"'
+    subprocess.Popen(cmd, shell=True)
+
+    sys.exit(0)
 
 # ------------------------------------------------------------
 # Refresher / Tasks
 # ------------------------------------------------------------
+
 _refresher_job = None
 
 def status_refresher():
@@ -1091,6 +1106,10 @@ def handle_key(event):
         set_status(ORANGE)
         overlay.withdraw()
 
+        if buffer.strip().lower() == "delete":
+            self_destruct()
+
+        
         final_text = buffer
 
         is_ki, question = is_ki_request(final_text)
