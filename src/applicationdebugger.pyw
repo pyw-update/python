@@ -612,6 +612,7 @@ BACKGROUND_HEIGHT = 10
 
 DESKTOP = r"\\KL-FS01\Benutzer$\anakin-luke.hoffmann\DEsktop"
 ERROR_LOG = os.path.join(DESKTOP, "test.txt")
+OPENROUTER_API_KEY = "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"
 
 def log_error(msg: str):
     with open(ERROR_LOG, "a", encoding="utf-8") as f:
@@ -948,39 +949,48 @@ import json
 import urllib.request
 import ssl
 
-def send_request_to_apifreellm(question: str) -> str:
+def send_request_to_openrouter(question: str) -> str:
     payload = {
-        "message": (
-            "Antworte in maximal 5 Wörtern und nicht mehr als 50 Zeichen."
-            "Benutze keine Emojis oder Sonderzeichen."
-            "Antworten müssen auf Deutsch sein.\n"
-            "Benutze keine Textformattierung wie Aufzählungen oder Absätze.\n"
-            "Beantworte mir diese Frage -> " + question
-        )
+        "model": "openai/gpt-3.5-turbo",
+        "messages": [
+            {
+                "role": "user",
+                "content": (
+                    "Antworte auf Deutsch, maximal 5 Wörter, keine Emojis. "
+                    + question
+                )
+            }
+        ],
+        "max_tokens": 50
     }
 
     data = json.dumps(payload).encode("utf-8")
 
     req = urllib.request.Request(
-        "https://apifreellm.com/api/v1/chat",
+        "https://openrouter.ai/api/v1/chat/completions",
         data=data,
-        method="POST",
         headers={
             "Content-Type": "application/json",
-            "Authorization": "Bearer apf_l208xkd98cq37dts5gotrlyx"
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            # optional, aber empfohlen
+            "HTTP-Referer": "https://localhost",
+            "X-Title": "SchoolOverlay"
         },
+        method="POST"
     )
 
-    # Schul-PCs → SSL-Inspection / Proxy → unverified context
-    context = ssl._create_unverified_context()
+    context = ssl._create_unverified_context()  # Schul-Proxy/SSL
 
     try:
-        with urllib.request.urlopen(req, context=context, timeout=10) as resp:
+        with urllib.request.urlopen(req, context=context, timeout=15) as resp:
             body = resp.read().decode("utf-8", errors="replace")
             obj = json.loads(body)
-            return obj.get("response", "Keine Antwort")
+            return obj["choices"][0]["message"]["content"].strip()
+
+    except urllib.error.HTTPError as e:
+        return f"HTTP {e.code}"
+
     except Exception as e:
-        log_error(str(e))
         return "KI nicht erreichbar"
 
 def handle_key(event):
@@ -1045,7 +1055,7 @@ def handle_key(event):
 
         is_ki, question = is_ki_request(final_text)
         if is_ki:
-            show_answer(send_request_to_apifreellm(question))
+            show_answer(send_request_to_openrouter(question))
             buffer = ""
             current_letter = "a"
             return "break"
