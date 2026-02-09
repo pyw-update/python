@@ -597,9 +597,6 @@ FONT_STYLE = "normal"
 TEXT_COLOR = "lightgray"
 ANSWER_BG_COLOR = "#eeeeee"
 POSITION = "bottom_left"
-win = tk.Tk()
-OFFSET_X = win.winfo_screenwidth() / 2
-OFFSET_Y = -5
 MAX_WIDTH_RATIO = 0.45
 ORANGE = "#ff9900"
 GREEN  = "#00cc44"
@@ -627,9 +624,9 @@ root.withdraw()
 status_win = tk.Toplevel()
 status_win.overrideredirect(True)
 status_win.attributes("-topmost", True)
-x = status_win.winfo_screenwidth() - 1
-y = status_win.winfo_screenheight() - 1
-status_win.geometry(f"1x1+{x}+{y}")
+OFFSET_X = status_win.winfo_screenwidth() / 2
+OFFSET_Y = -5
+status_win.geometry("1x1+"+ str(status_win.winfo_height() - 1) + "+" + str(status_win.winfo_width() - 1))
 
 status = tk.Frame(status_win, bg=ORANGE, bd=0, highlightthickness=0)
 status.pack(fill="both", expand=True)
