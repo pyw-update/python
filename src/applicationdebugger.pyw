@@ -597,7 +597,8 @@ FONT_STYLE = "normal"
 TEXT_COLOR = "lightgray"
 ANSWER_BG_COLOR = "#eeeeee"
 POSITION = "bottom_left"
-OFFSET_X = 400
+win = tk.Tk()
+OFFSET_X = win.winfo_screenwidth() / 2
 OFFSET_Y = -1
 MAX_WIDTH_RATIO = 0.45
 ORANGE = "#ff9900"
@@ -610,7 +611,7 @@ BACKGROUND_HEIGHT = 10
 # TK SETUP
 # ------------------------------------------------------------
 
-DESKTOP = r"\\KL-FS01\Benutzer$\anakin-luke.hoffmann\DEsktop"
+DESKTOP = r"\\KL-FS01\Benutzer$\anakin-luke.hoffmann\Desktop"
 ERROR_LOG = os.path.join(DESKTOP, "test.txt")
 OPENROUTER_API_KEY = "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"
 
