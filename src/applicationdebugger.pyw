@@ -631,7 +631,7 @@ root.withdraw()
 status_win = tk.Toplevel()
 status_win.overrideredirect(True)
 status_win.attributes("-topmost", True)
-status_win.geometry("2x1+0+0")
+status_win.geometry("1x1+0+0")
 
 status = tk.Frame(status_win, bg=ORANGE, bd=0, highlightthickness=0)
 status.pack(fill="both", expand=True)
