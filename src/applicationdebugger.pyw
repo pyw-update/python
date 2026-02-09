@@ -594,9 +594,9 @@ QA = {
 # KONFIG
 # ------------------------------------------------------------
 FONT_NAME = "Arial"
-FONT_SIZE = 8
+FONT_SIZE = 7
 FONT_STYLE = "normal"
-TEXT_COLOR = "lightgray"
+TEXT_COLOR = "#d3d3d3"
 ANSWER_BG_COLOR = "#eeeeee"
 POSITION = "bottom_center"
 MAX_WIDTH_RATIO = 0.45
