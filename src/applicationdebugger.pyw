@@ -621,6 +621,10 @@ boolean_ki_enabled = True
 root = tk.Tk()
 root.withdraw()
 
+current_status_color = ORANGE
+green_since = None  # Zeitstempel, seit wann grün aktiv ist
+
+
 status_win = tk.Toplevel()
 status_win.overrideredirect(True)
 status_win.attributes("-topmost", True)
@@ -634,7 +638,15 @@ status = tk.Frame(status_win, bg=ORANGE, bd=0, highlightthickness=0)
 status.pack(fill="both", expand=True)
 
 def set_status(color):
+    global current_status_color, green_since
+    current_status_color = color
     status.configure(bg=color)
+
+    if color == GREEN:
+        green_since = time.time()
+    else:
+        green_since = None
+
 
 overlay = tk.Toplevel()
 overlay.overrideredirect(True)
@@ -656,6 +668,32 @@ label = tk.Label(
 label.pack()
 
 overlay.withdraw()
+
+
+# ------------------------------------------------------------
+# Refresher / Tasks
+# ------------------------------------------------------------
+_refresher_job = None
+
+def status_refresher():
+    global _refresher_job
+
+    do_refresh = False
+
+    if current_status_color == ORANGE:
+        do_refresh = True
+
+    elif current_status_color == GREEN and green_since is not None:
+        if time.time() - green_since >= 10:
+            do_refresh = True
+
+    if do_refresh:
+        status_win.attributes("-topmost", False)
+        status_win.attributes("-topmost", True)
+        status_win.lift()
+
+    _refresher_job = status_win.after(500, status_refresher)
+
 
 # ------------------------------------------------------------
 # POSITION / GEOMETRIE
@@ -1111,4 +1149,5 @@ capture_win.deiconify()
 capture_win.focus_force()
 capture_win.attributes("-alpha", 0.01)
 
+status_refresher()
 status_win.mainloop()
