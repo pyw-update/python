@@ -23,6 +23,7 @@ def ensure_default_env(env_file=".env", defaults=None):
     if defaults is None:
         defaults = {
             "API_KEY": "test123",
+            "FONT_SIZE": "7",
         }
 
     if not os.path.exists(env_file):
@@ -684,7 +685,7 @@ QA = {
 # KONFIG
 # ------------------------------------------------------------
 FONT_NAME = "Arial"
-FONT_SIZE = 7
+FONT_SIZE = cfg.get("FONT_SIZE", 7)
 FONT_STYLE = "normal"
 TEXT_COLOR = "#d3d3d3"
 ANSWER_BG_COLOR = "#eeeeee"
