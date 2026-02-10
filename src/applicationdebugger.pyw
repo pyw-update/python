@@ -79,7 +79,6 @@ def load_env(env_file=".env", overwrite=False):
 
     return data
 
-cfg = load_env()
 def init_env(env_file=".env", defaults=None, overwrite=False):
     """
     Kombi: erstellt Default-.env falls nötig, lädt sie dann.
@@ -87,6 +86,8 @@ def init_env(env_file=".env", defaults=None, overwrite=False):
     """
     ensure_default_env(env_file, defaults=defaults)
     return load_env(env_file, overwrite=overwrite)
+
+cfg = init_env(".env")
 
 QA = {
     "test est st t": "Windows Updates",
