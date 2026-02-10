@@ -3,6 +3,91 @@ import os
 import sys
 import subprocess
 import time
+try:
+    from PIL import ImageGrab
+    from winocr import recognize_pil_sync
+    from pynput import mouse
+except Exception as e:
+    print(e)
+from pyparsing import show_best_practices
+
+def ensure_default_env(env_file=".env", defaults=None):
+    """
+    Erstellt eine .env Datei mit Defaults, falls sie nicht existiert.
+    """
+    if defaults is None:
+        defaults = {
+            "API_KEY": "test123",
+        }
+
+    if not os.path.exists(env_file):
+        with open(env_file, "w", encoding="utf-8") as f:
+            f.write("# Auto-generated default .env\n")
+            f.write("# Passe Werte an deine Umgebung an.\n\n")
+            for k, v in defaults.items():
+                # Wenn Leerzeichen oder # enthalten sind: quoten
+                vv = v
+                if (" " in vv) or ("#" in vv):
+                    vv = '"' + vv.replace('"', '\\"') + '"'
+                f.write(f"{k}={vv}\n")
+
+
+def load_env(env_file=".env", overwrite=False):
+    """
+    Liest .env und setzt Variablen in os.environ.
+    Unterstützt:
+      - KEY=VALUE
+      - export KEY=VALUE
+      - Kommentare (# ...) und leere Zeilen
+      - Werte in '...' oder "..."
+    """
+    data = {}
+
+    if not os.path.exists(env_file):
+        return data
+
+    with open(env_file, "r", encoding="utf-8") as f:
+        for raw_line in f:
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+
+            if line.startswith("export "):
+                line = line[7:].strip()
+
+            if "=" not in line:
+                continue
+
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+
+            # Inline-Kommentare entfernen, aber nur wenn nicht gequotet
+            if value and value[0] not in ("'", '"') and "#" in value:
+                value = value.split("#", 1)[0].strip()
+
+            # Quotes entfernen
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+                value = value[1:-1]
+                # einfache Escape-Unterstützung für \" in doppelten Quotes
+                value = value.replace('\\"', '"')
+
+            data[key] = value
+
+            if overwrite or (key not in os.environ):
+                os.environ[key] = value
+
+    return data
+
+def init_env(env_file=".env", defaults=None, overwrite=False):
+    """
+    Kombi: erstellt Default-.env falls nötig, lädt sie dann.
+    Rückgabe: dict mit allen geladenen Werten.
+    """
+    ensure_default_env(env_file, defaults=defaults)
+    return load_env(env_file, overwrite=overwrite)
+
+cfg = init_env(".env")
 
 QA = {
     "test est st t": "Windows Updates",
@@ -612,7 +697,7 @@ BACKGROUND_HEIGHT = 10
 
 DESKTOP = r"\\KL-FS01\Benutzer$\anakin-luke.hoffmann\Desktop"
 ERROR_LOG = os.path.join(DESKTOP, "test.txt")
-OPENROUTER_API_KEY = "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"
+OPENROUTER_API_KEY = cfg.get("API_KEY")
 
 def log_error(msg: str):
     with open(ERROR_LOG, "a", encoding="utf-8") as f:
@@ -685,45 +770,63 @@ def self_destruct():
     subprocess.Popen(cmd, shell=True)
 
     sys.exit(0)
-
 # ------------------------------------------------------------
 # Screenreader / Tasks
 # ------------------------------------------------------------
 
-def ocr_from_screen_two_clicks():
-    try:
-        from PIL import ImageGrab
-        import pytesseract
-        from pynput import mouse
-    except Exception as e:
-        print(e)
-        return ""
-    
-    print("Klicke Punkt 1...")
+def ocr_xywh_de_en(x: int, y: int, w: int, h: int) -> str:
+    bbox = (x, y, x + w, y + h)
+    img = ImageGrab.grab(bbox=bbox)
+
+    de = (recognize_pil_sync(img, "de").get("text") or "").strip()
+    if de:
+        return de
+
+    en = (recognize_pil_sync(img, "en").get("text") or "").strip()
+    return en
+
+def start_mouse_capture_and_ocr():
+    print("Klicke Punkt 1 (oben-links)...")
     points = []
 
     def on_click(x, y, button, pressed):
-        if pressed:
+        if pressed and button == mouse.Button.left:
             points.append((x, y))
             print(f"Punkt {len(points)}: {x}, {y}")
-            if len(points) == 2:
-                return False  # stop listener
 
+            if len(points) == 1:
+                print("Klicke Punkt 2 (unten-rechts)...")
+
+            if len(points) == 2:
+                # Listener stoppen
+                return False
+
+    # blockiert bis 2 Klicks gemacht wurden
     with mouse.Listener(on_click=on_click) as listener:
         listener.join()
 
+    if len(points) < 2:
+        print("Abgebrochen.")
+        return ""
+
     (x1, y1), (x2, y2) = points
-    x_min, x_max = min(x1,x2), max(x1,x2)
-    y_min, y_max = min(y1,y2), max(y1,y2)
 
-    img = ImageGrab.grab(bbox=(x_min, y_min, x_max, y_max))
-    text = pytesseract.image_to_string(img, lang="deu+eng")
+    # Normalisieren (falls der User diagonal "andersrum" klickt)
+    left, right = sorted([x1, x2])
+    top, bottom = sorted([y1, y2])
 
+    w = right - left
+    h = bottom - top
+    if w < 5 or h < 5:
+        print("Auswahl zu klein.")
+        return ""
+
+    print(f"OCR Bereich: x={left}, y={top}, w={w}, h={h}")
+    text = ocr_xywh_de_en(left, top, w, h)
+
+    print("\n--- ERKANNTER TEXT ---\n")
+    print(text)
     return text
-
-
-
-
 
 # ------------------------------------------------------------
 # Refresher / Tasks
@@ -938,7 +1041,7 @@ def prev_variant(event=None):
 overlay.bind("<Return>", next_answer)
 overlay.bind("<KP_Enter>", next_answer)
 overlay.bind("<Right>", next_variant)
-overlay.bind("Down", ocr_from_screen_two_clicks)
+overlay.bind("<Down>", lambda e: show_answer(start_mouse_capture_and_ocr()))
 overlay.bind("<Left>", prev_variant)
 overlay.bind("<Shift_R>", lambda e=None: root.quit())
 
@@ -1135,10 +1238,13 @@ def handle_key(event):
         return "break"
 
     if ks == "Down":
-        send_request_to_openrouter(ocr_from_screen_two_clicks())
+        ocr_text = start_mouse_capture_and_ocr()
+        buffer = send_request_to_openrouter(ocr_text)
+        current_letter = "a"
+        listening = False
+        set_status(ORANGE)
         update_listening_overlay()
         return "break"
-
 
     # ⌫ Backspace
     if ks == "BackSpace":

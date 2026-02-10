@@ -162,7 +162,7 @@ def venv_has(module: str) -> bool:
     )
     return r.returncode == 0
 
-packets = ["pytesseract", "pillow", "pynput"]
+packets = ["winocr", "pillow", "pynput", "numpy"]
 # ────────────────────────────────────────────────
 def install_dependencies():
     """
