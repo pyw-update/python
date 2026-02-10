@@ -690,15 +690,18 @@ def self_destruct():
 # Screenreader / Tasks
 # ------------------------------------------------------------
 
-from PIL import ImageGrab
-from pynput import mouse
-import winsdk.windows.media.ocr as ocr
-import winsdk.windows.graphics.imaging as imaging
-import numpy as np
-import asyncio
-
 
 def ocr_from_screen_two_clicks() -> str:
+    try:
+        from PIL import ImageGrab
+        from pynput import mouse
+        import winsdk.windows.media.ocr as ocr
+        import winsdk.windows.graphics.imaging as imaging
+        import numpy as np
+        import asyncio
+    except Exception as e:
+        print(e)
+    
     print("Klicke Punkt 1...")
     points = []
 
