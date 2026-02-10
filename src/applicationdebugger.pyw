@@ -690,15 +690,15 @@ def self_destruct():
 # Screenreader / Tasks
 # ------------------------------------------------------------
 
-def ocr_from_screen_two_clicks():
-    try:
-        from PIL import ImageGrab
-        import pytesseract
-        from pynput import mouse
-    except Exception as e:
-        print(e)
-        return ""
-    
+from PIL import ImageGrab
+from pynput import mouse
+import winsdk.windows.media.ocr as ocr
+import winsdk.windows.graphics.imaging as imaging
+import numpy as np
+import asyncio
+
+
+def ocr_from_screen_two_clicks() -> str:
     print("Klicke Punkt 1...")
     points = []
 
@@ -713,12 +713,28 @@ def ocr_from_screen_two_clicks():
         listener.join()
 
     (x1, y1), (x2, y2) = points
-    x_min, x_max = min(x1,x2), max(x1,x2)
-    y_min, y_max = min(y1,y2), max(y1,y2)
+    x_min, x_max = min(x1, x2), max(x1, x2)
+    y_min, y_max = min(y1, y2), max(y1, y2)
 
+    # Screenshot Bereich
     img = ImageGrab.grab(bbox=(x_min, y_min, x_max, y_max))
-    text = pytesseract.image_to_string(img, lang="deu+eng")
+    img_np = np.array(img)
 
+    async def run_ocr():
+        h, w, _ = img_np.shape
+
+        software_bitmap = imaging.SoftwareBitmap.create_copy_from_buffer(
+            img_np.tobytes(),
+            imaging.BitmapPixelFormat.BGRA8,
+            w,
+            h
+        )
+
+        engine = ocr.OcrEngine.try_create_from_user_profile_languages()
+        result = await engine.recognize_async(software_bitmap)
+        return result.text
+
+    text = asyncio.run(run_ocr())
     return text
 
 
