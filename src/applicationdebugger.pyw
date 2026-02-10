@@ -11,6 +11,83 @@ except Exception as e:
     print(e)
 from pyparsing import show_best_practices
 
+def ensure_default_env(env_file=".env", defaults=None):
+    """
+    Erstellt eine .env Datei mit Defaults, falls sie nicht existiert.
+    """
+    if defaults is None:
+        defaults = {
+            "API_KEY": "test123",
+        }
+
+    if not os.path.exists(env_file):
+        with open(env_file, "w", encoding="utf-8") as f:
+            f.write("# Auto-generated default .env\n")
+            f.write("# Passe Werte an deine Umgebung an.\n\n")
+            for k, v in defaults.items():
+                # Wenn Leerzeichen oder # enthalten sind: quoten
+                vv = v
+                if (" " in vv) or ("#" in vv):
+                    vv = '"' + vv.replace('"', '\\"') + '"'
+                f.write(f"{k}={vv}\n")
+
+
+def load_env(env_file=".env", overwrite=False):
+    """
+    Liest .env und setzt Variablen in os.environ.
+    Unterstützt:
+      - KEY=VALUE
+      - export KEY=VALUE
+      - Kommentare (# ...) und leere Zeilen
+      - Werte in '...' oder "..."
+    """
+    data = {}
+
+    if not os.path.exists(env_file):
+        return data
+
+    with open(env_file, "r", encoding="utf-8") as f:
+        for raw_line in f:
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+
+            if line.startswith("export "):
+                line = line[7:].strip()
+
+            if "=" not in line:
+                continue
+
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+
+            # Inline-Kommentare entfernen, aber nur wenn nicht gequotet
+            if value and value[0] not in ("'", '"') and "#" in value:
+                value = value.split("#", 1)[0].strip()
+
+            # Quotes entfernen
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+                value = value[1:-1]
+                # einfache Escape-Unterstützung für \" in doppelten Quotes
+                value = value.replace('\\"', '"')
+
+            data[key] = value
+
+            if overwrite or (key not in os.environ):
+                os.environ[key] = value
+
+    return data
+
+cfg = load_env()
+def init_env(env_file=".env", defaults=None, overwrite=False):
+    """
+    Kombi: erstellt Default-.env falls nötig, lädt sie dann.
+    Rückgabe: dict mit allen geladenen Werten.
+    """
+    ensure_default_env(env_file, defaults=defaults)
+    return load_env(env_file, overwrite=overwrite)
+
 QA = {
     "test est st t": "Windows Updates",
     "During a routine inspection, a technician discovered that software that was installed on a computer was secretly collecting data about websites that were visited by users of the computer. Which type of threat is affecting this computer?": "ftprlad | setnwdtsfeu | sptnfua",
@@ -619,7 +696,7 @@ BACKGROUND_HEIGHT = 10
 
 DESKTOP = r"\\KL-FS01\Benutzer$\anakin-luke.hoffmann\Desktop"
 ERROR_LOG = os.path.join(DESKTOP, "test.txt")
-OPENROUTER_API_KEY = "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"
+OPENROUTER_API_KEY = cfg.get("API_KEY")
 
 def log_error(msg: str):
     with open(ERROR_LOG, "a", encoding="utf-8") as f:
