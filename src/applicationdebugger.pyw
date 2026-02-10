@@ -11,7 +11,6 @@ import urllib.error
 from io import BytesIO
 try:
     from PIL import ImageGrab
-    from winocr import recognize_pil_sync
     from pynput import mouse
 except Exception as e:
     print(e)
@@ -695,7 +694,7 @@ ORANGE = "#ff9900"
 GREEN  = "#00cc44"
 RED    = "#ff0000"
 BACKGROUND_WIDTH = None
-BACKGROUND_HEIGHT = 10
+BACKGROUND_HEIGHT = None
 
 # ------------------------------------------------------------
 # TK SETUP

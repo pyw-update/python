@@ -161,9 +161,9 @@ def venv_has(module: str) -> bool:
     )
     return r.returncode == 0
 
-packets = ["winocr", "pillow", "pynput", "numpy"]
+packets = ["pillow", "pynput", "numpy"]
 # ────────────────────────────────────────────────
-def install_dependencies():
+def install_dependencies() -> None:
     """
     Installiert requests in der venv, falls nicht vorhanden.
     WICHTIG: Check & Install laufen über venv-python, nicht über den Updater-Python.
