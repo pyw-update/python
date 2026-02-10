@@ -692,7 +692,6 @@ def self_destruct():
     subprocess.Popen(cmd, shell=True)
 
     sys.exit(0)
-
 # ------------------------------------------------------------
 # Screenreader / Tasks
 # ------------------------------------------------------------
@@ -1161,12 +1160,11 @@ def handle_key(event):
         return "break"
 
     if ks == "Down":
-        show_answer(start_mouse_capture_and_ocr())
+        answer = start_mouse_capture_and_ocr()
+        buffer = answer
         current_letter = "a"
         update_listening_overlay()
         return "break"
-
-
 
     # ⌫ Backspace
     if ks == "BackSpace":
