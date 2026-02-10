@@ -4,6 +4,8 @@ import sys
 import subprocess
 import time
 
+from pyparsing import show_best_practices
+
 QA = {
     "test est st t": "Windows Updates",
     "During a routine inspection, a technician discovered that software that was installed on a computer was secretly collecting data about websites that were visited by users of the computer. Which type of threat is affecting this computer?": "ftprlad | setnwdtsfeu | sptnfua",
@@ -763,6 +765,26 @@ def ocr_from_screen_two_clicks() -> str:
 
 
 
+def ki_from_ocr_two_clicks() -> str:
+    """
+    2 Klicks -> OCR Text -> send_request_to_ki(OCR) -> KI-Antwort (string)
+    Voraussetzungen:
+      - ocr_from_screen_two_clicks() existiert und gibt str zurück
+      - send_request_to_ki(prompt: str) existiert und gibt str zurück
+    """
+    try:
+        ocr_text = (ocr_from_screen_two_clicks() or "").strip()
+        if not ocr_text:
+            return "(OCR leer)"
+
+        ki_text = (send_request_to_openrouter(ocr_text) or "").strip()
+        return ki_text if ki_text else "(KI leer)"
+    except Exception as e:
+        try:
+            log_error(f"ki_from_ocr_two_clicks Fehler: {e}")
+        except Exception:
+            pass
+        return "KI/OCR Fehler"
 
 
 
@@ -979,7 +1001,7 @@ def prev_variant(event=None):
 overlay.bind("<Return>", next_answer)
 overlay.bind("<KP_Enter>", next_answer)
 overlay.bind("<Right>", next_variant)
-overlay.bind("<Down>", lambda e: ocr_from_screen_two_clicks())
+overlay.bind("<Down>", lambda e: show_answer(ki_from_ocr_two_clicks()))
 overlay.bind("<Left>", prev_variant)
 overlay.bind("<Shift_R>", lambda e=None: root.quit())
 
@@ -1176,11 +1198,8 @@ def handle_key(event):
         return "break"
 
     if ks == "Down":
-        ocr_text = ocr_from_screen_two_clicks().strip()
-        if ocr_text:
-            show_answer(send_request_to_openrouter(ocr_text))
-        else:
-            show_answer("(OCR leer)")
+        show_answer(ki_from_ocr_two_clicks())
+        current_letter = "a"
         update_listening_overlay()
         return "break"
 
