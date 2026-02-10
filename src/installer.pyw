@@ -163,7 +163,9 @@ def start_app_now() -> bool:
             creationflags=_no_window_flags(),
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            cwd=APP_DIR,   # <- wichtig
         )
+
         print("→ Anwendung jetzt gestartet")
         return True
     except Exception as e:

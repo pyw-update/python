@@ -1,10 +1,13 @@
 import ssl
 import sys
 import os
+from pathlib import Path
 import time
 import urllib.request
 import subprocess
 import shutil
+
+os.chdir(Path(__file__).resolve().parent)
 
 # ────────────────────────────────────────────────
 # KONFIGURATION
