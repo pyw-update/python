@@ -3,6 +3,12 @@ import os
 import sys
 import subprocess
 import time
+import json
+import ssl
+import base64
+import urllib.request
+import urllib.error
+from io import BytesIO
 try:
     from PIL import ImageGrab
     from winocr import recognize_pil_sync
@@ -773,16 +779,77 @@ def self_destruct():
 # Screenreader / Tasks
 # ------------------------------------------------------------
 
+def send_request_to_openrouter_with_grab(question: str, bbox) -> str:
+    """
+    bbox: (x1, y1, x2, y2) wie bei ImageGrab.grab(bbox=...)
+    """
+    img = ImageGrab.grab(bbox=bbox)
+
+    # In Memory als JPEG kodieren (kleiner als PNG)
+    buf = BytesIO()
+    img.save(buf, format="JPEG", quality=85)
+    jpg_bytes = buf.getvalue()
+
+    b64 = base64.b64encode(jpg_bytes).decode("ascii")
+    data_url = f"data:image/jpeg;base64,{b64}"
+
+    payload = {
+        # Vision-Modell wählen (MUSS Bilder können)
+        "model": "openai/gpt-4o-mini",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Antworte auf Deutsch, maximal 5 Wörter, keine Emojis. " + question
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": data_url}
+                    }
+                ]
+            }
+        ],
+        "max_tokens": 50
+    }
+
+    req = urllib.request.Request(
+        "https://openrouter.ai/api/v1/chat/completions",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "HTTP-Referer": "https://localhost",
+            "X-Title": "SchoolOverlay"
+        },
+        method="POST"
+    )
+
+    context = ssl._create_unverified_context()  # Schul-Proxy/SSL
+
+    try:
+        with urllib.request.urlopen(req, context=context, timeout=30) as resp:
+            body = resp.read().decode("utf-8", errors="replace")
+            obj = json.loads(body)
+            return obj["choices"][0]["message"]["content"].strip()
+
+    except urllib.error.HTTPError as e:
+        # Debug: Fehltext kurz zurückgeben
+        try:
+            err = e.read().decode("utf-8", errors="replace")
+            return f"HTTP {e.code}: {err[:200]}"
+        except Exception:
+            return f"HTTP {e.code}"
+
+    except Exception:
+        return "KI nicht erreichbar"
+
 def ocr_xywh_de_en(x: int, y: int, w: int, h: int) -> str:
     bbox = (x, y, x + w, y + h)
     img = ImageGrab.grab(bbox=bbox)
 
-    de = (recognize_pil_sync(img, "de").get("text") or "").strip()
-    if de:
-        return de
-
-    en = (recognize_pil_sync(img, "en").get("text") or "").strip()
-    return en
+    send_request_to_openrouter_with_grab("ocr", img)
 
 def start_mouse_capture_and_ocr():
     print("Klicke Punkt 1 (oben-links)...")

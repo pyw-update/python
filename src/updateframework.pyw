@@ -11,7 +11,7 @@ import shutil
 FILE_NAME = "applicationdebugger.pyw"  # Name der Hauptdatei deiner Anwendung
 UPDATE_URL = "https://raw.githubusercontent.com/pyw-update/python/refs/heads/main/src/" + FILE_NAME
 
-BASE_DIR = "./"
+BASE_DIR = os.get_exec_path()[0]
 
 APP_PATH = os.path.join(BASE_DIR, FILE_NAME)
 
