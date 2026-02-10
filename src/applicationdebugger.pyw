@@ -23,12 +23,13 @@ def ensure_default_env(env_file=".env", defaults=None):
         defaults = {
             "API_KEY": "test123",
             "FONT_SIZE": "7",
+            "TEXT_POSITION": "bottom_center",
         }
-
     if not os.path.exists(env_file):
         with open(env_file, "w", encoding="utf-8") as f:
             f.write("# Auto-generated default .env\n")
-            f.write("# Passe Werte an deine Umgebung an.\n\n")
+            f.write("# Passe Werte an deine Umgebung an.\n")
+            f.write("# Text position: top_left, top_center, top_right, center_left, center, center_right, bottom_left, bottom_center, bottom_right\n\n")
             for k, v in defaults.items():
                 # Wenn Leerzeichen oder # enthalten sind: quoten
                 vv = v
@@ -688,11 +689,12 @@ FONT_SIZE = cfg.get("FONT_SIZE", 7)
 FONT_STYLE = "normal"
 TEXT_COLOR = "#d3d3d3"
 ANSWER_BG_COLOR = "#eeeeee"
-POSITION = "bottom_center"
+POSITION = cfg.get("TEXT_POSITION", "bottom_center")
 MAX_WIDTH_RATIO = 0.45
 ORANGE = "#ff9900"
 GREEN  = "#00cc44"
 RED    = "#ff0000"
+MAGENTA = "#ff00ff"
 BACKGROUND_WIDTH = None
 BACKGROUND_HEIGHT = None
 
@@ -780,62 +782,59 @@ def self_destruct():
 # ------------------------------------------------------------
 
 def send_request_to_openrouter_with_grab(question: str, bbox) -> str:
-    # 1) Bild holen (PIL Image)
-    img = ImageGrab.grab(bbox=bbox)
+    set_processing(True)
+    try:
+        img = ImageGrab.grab(bbox=bbox)
 
-    # 2) In-Memory als JPEG -> base64 -> data_url
-    buf = BytesIO()
-    img.save(buf, format="JPEG", quality=85)
-    base64_image = base64.b64encode(buf.getvalue()).decode("utf-8")
-    data_url = f"data:image/jpeg;base64,{base64_image}"
+        buf = BytesIO()
+        img.save(buf, format="JPEG", quality=85)
+        base64_image = base64.b64encode(buf.getvalue()).decode("utf-8")
+        data_url = f"data:image/jpeg;base64,{base64_image}"
 
-    # 3) Messages GENAU wie in deinem Beispiel (content = [text, image_url])
-    payload = {
-        "model": "google/gemini-3-flash-preview",
-        "messages": [
-            {
+        payload = {
+            "model": "google/gemini-3-flash-preview",
+            "messages": [{
                 "role": "user",
                 "content": [
                     {"type": "text", "text": question},
                     {"type": "image_url", "image_url": {"url": data_url}}
                 ]
-            }
-        ],
-        "max_tokens": 50
-    }
+            }],
+            "max_tokens": 50
+        }
 
-    data = json.dumps(payload).encode("utf-8")
+        data = json.dumps(payload).encode("utf-8")
 
-    req = urllib.request.Request(
-        "https://openrouter.ai/api/v1/chat/completions",
-        data=data,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-            "HTTP-Referer": "https://localhost",
-            "X-Title": "SchoolOverlay"
-        },
-        method="POST"
-    )
+        req = urllib.request.Request(
+            "https://openrouter.ai/api/v1/chat/completions",
+            data=data,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "HTTP-Referer": "https://localhost",
+                "X-Title": "SchoolOverlay"
+            },
+            method="POST"
+        )
 
-    context = ssl._create_unverified_context()  # Schul-Proxy/SSL
+        context = ssl._create_unverified_context()
 
-    try:
         with urllib.request.urlopen(req, context=context, timeout=30) as resp:
             body = resp.read().decode("utf-8", errors="replace")
             obj = json.loads(body)
             return obj["choices"][0]["message"]["content"].strip()
 
     except urllib.error.HTTPError as e:
-        # Optional: Fehlerbody kurz anzeigen
         try:
             err = e.read().decode("utf-8", errors="replace")
             return f"HTTP {e.code}: {err[:200]}"
         except Exception:
             return f"HTTP {e.code}"
-
     except Exception:
         return "KI nicht erreichbar"
+    finally:
+        set_processing(False)
+
 
 def ocr_xywh_de_en(x: int, y: int, w: int, h: int) -> str:
     bbox = (x, y, x + w, y + h)
@@ -1126,10 +1125,33 @@ def normalize(s: str) -> str:
     return " ".join(s.lower().split())
 
 
+def start_listening():
+    global listening, buffer, current_letter
+    listening = True
+    buffer = ""
+    current_letter = "a"
+    set_status(GREEN)
+    update_listening_overlay()
+
+def stop_listening():
+    global listening, buffer, current_letter
+    listening = False
+    buffer = ""
+    current_letter = "a"
+    set_status(ORANGE)
+    overlay.withdraw()
+
 def on_status_click(_e=None):
-    capture_win.deiconify()
-    capture_win.lift()
-    capture_win.focus_force()
+    # Toggle
+    if listening:
+        stop_listening()
+    else:
+        start_listening()
+        capture_win.deiconify()
+        capture_win.lift()
+        capture_win.focus_force()
+    return "break"
+
 
 status_win.bind("<Button-1>", on_status_click)
 status_win.bind("<Shift_R>", lambda e=None: root.quit())
@@ -1205,39 +1227,53 @@ import json
 import urllib.request
 import ssl
 
+def set_processing(on: bool):
+    # während KI läuft: magenta
+    if on:
+        set_status(MAGENTA)
+        try:
+            status_win.update_idletasks()
+            status_win.update()
+        except Exception:
+            pass
+    else:
+        # zurück: wenn gerade listening → grün, sonst orange
+        set_status(GREEN if listening else ORANGE)
+        try:
+            status_win.update_idletasks()
+            status_win.update()
+        except Exception:
+            pass
+
+
 def send_request_to_openrouter(question: str) -> str:
-    payload = {
-        "model": "openai/gpt-3.5-turbo",
-        "messages": [
-            {
-                "role": "user",
-                "content": (
-                    "Antworte auf Deutsch, maximal 5 Wörter, keine Emojis. "
-                    + question
-                )
-            }
-        ],
-        "max_tokens": 50
-    }
-
-    data = json.dumps(payload).encode("utf-8")
-
-    req = urllib.request.Request(
-        "https://openrouter.ai/api/v1/chat/completions",
-        data=data,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-            # optional, aber empfohlen
-            "HTTP-Referer": "https://localhost",
-            "X-Title": "SchoolOverlay"
-        },
-        method="POST"
-    )
-
-    context = ssl._create_unverified_context()  # Schul-Proxy/SSL
-
+    set_processing(True)
     try:
+        payload = {
+            "model": "openai/gpt-3.5-turbo",
+            "messages": [{
+                "role": "user",
+                "content": "Antworte auf Deutsch, maximal 5 Wörter, keine Emojis. " + question
+            }],
+            "max_tokens": 50
+        }
+
+        data = json.dumps(payload).encode("utf-8")
+
+        req = urllib.request.Request(
+            "https://openrouter.ai/api/v1/chat/completions",
+            data=data,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "HTTP-Referer": "https://localhost",
+                "X-Title": "SchoolOverlay"
+            },
+            method="POST"
+        )
+
+        context = ssl._create_unverified_context()
+
         with urllib.request.urlopen(req, context=context, timeout=15) as resp:
             body = resp.read().decode("utf-8", errors="replace")
             obj = json.loads(body)
@@ -1245,24 +1281,17 @@ def send_request_to_openrouter(question: str) -> str:
 
     except urllib.error.HTTPError as e:
         return f"HTTP {e.code}"
-
-    except Exception as e:
+    except Exception:
         return "KI nicht erreichbar"
+    finally:
+        set_processing(False)
+
 
 def handle_key(event):
     global listening, buffer, current_letter
 
     ks = event.keysym
     ch = event.char
-
-    # Start Listening
-    if (ch == "0" or ks == "0") and not listening:
-        listening = True
-        buffer = ""
-        current_letter = "a"
-        set_status(GREEN)
-        update_listening_overlay()
-        return "break"
 
     if not listening:
         return "break"
@@ -1371,7 +1400,7 @@ def prev_letter(event=None):
 capture_win.bind("<Right>", next_letter)
 capture_win.bind("<Left>", prev_letter)
 capture_win.bind("<KeyPress>", handle_key, add="+")
-overlay.bind("<Shift_R>", lambda e=None: root.quit())
+capture_win.bind("<Shift_R>", lambda e=None: root.quit())
 
 set_status(ORANGE)
 
