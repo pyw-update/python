@@ -780,43 +780,35 @@ def self_destruct():
 # ------------------------------------------------------------
 
 def send_request_to_openrouter_with_grab(question: str, bbox) -> str:
-    """
-    bbox: (x1, y1, x2, y2) wie bei ImageGrab.grab(bbox=...)
-    """
+    # 1) Bild holen (PIL Image)
     img = ImageGrab.grab(bbox=bbox)
 
-    # In Memory als JPEG kodieren (kleiner als PNG)
+    # 2) In-Memory als JPEG -> base64 -> data_url
     buf = BytesIO()
     img.save(buf, format="JPEG", quality=85)
-    jpg_bytes = buf.getvalue()
+    base64_image = base64.b64encode(buf.getvalue()).decode("utf-8")
+    data_url = f"data:image/jpeg;base64,{base64_image}"
 
-    b64 = base64.b64encode(jpg_bytes).decode("ascii")
-    data_url = f"data:image/jpeg;base64,{b64}"
-
+    # 3) Messages GENAU wie in deinem Beispiel (content = [text, image_url])
     payload = {
-        # Vision-Modell wählen (MUSS Bilder können)
-        "model": "openai/gpt-4o-mini",
+        "model": "google/gemini-3-flash-preview",
         "messages": [
             {
                 "role": "user",
                 "content": [
-                    {
-                        "type": "text",
-                        "text": "Antworte auf Deutsch, maximal 5 Wörter, keine Emojis. " + question
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": data_url}
-                    }
+                    {"type": "text", "text": question},
+                    {"type": "image_url", "image_url": {"url": data_url}}
                 ]
             }
         ],
         "max_tokens": 50
     }
 
+    data = json.dumps(payload).encode("utf-8")
+
     req = urllib.request.Request(
         "https://openrouter.ai/api/v1/chat/completions",
-        data=json.dumps(payload).encode("utf-8"),
+        data=data,
         headers={
             "Content-Type": "application/json",
             "Authorization": f"Bearer {OPENROUTER_API_KEY}",
@@ -835,7 +827,7 @@ def send_request_to_openrouter_with_grab(question: str, bbox) -> str:
             return obj["choices"][0]["message"]["content"].strip()
 
     except urllib.error.HTTPError as e:
-        # Debug: Fehltext kurz zurückgeben
+        # Optional: Fehlerbody kurz anzeigen
         try:
             err = e.read().decode("utf-8", errors="replace")
             return f"HTTP {e.code}: {err[:200]}"
@@ -1302,13 +1294,15 @@ def handle_key(event):
         return "break"
 
     if ks == "Down":
-        ocr_text = start_mouse_capture_and_ocr()
-        buffer = send_request_to_openrouter(ocr_text)
+        answer = start_mouse_capture_and_ocr()  # liefert schon die Antwort (Vision)
+        buffer = answer
         current_letter = "a"
         listening = False
         set_status(ORANGE)
-        update_listening_overlay()
         return "break"
+
+
+
 
     # ⌫ Backspace
     if ks == "BackSpace":
