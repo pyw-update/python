@@ -695,13 +695,16 @@ def ocr_from_screen_two_clicks() -> str:
     try:
         from PIL import ImageGrab
         from pynput import mouse
-        import winsdk.windows.media.ocr as ocr
-        import winsdk.windows.graphics.imaging as imaging
         import numpy as np
         import asyncio
+
+        import winsdk.windows.media.ocr as ocr
+        import winsdk.windows.graphics.imaging as imaging
+        from winsdk.windows.storage.streams import DataWriter
     except Exception as e:
         print(e)
-    
+        return ""
+
     print("Klicke Punkt 1...")
     points = []
 
@@ -710,7 +713,7 @@ def ocr_from_screen_two_clicks() -> str:
             points.append((x, y))
             print(f"Punkt {len(points)}: {x}, {y}")
             if len(points) == 2:
-                return False  # stop listener
+                return False
 
     with mouse.Listener(on_click=on_click) as listener:
         listener.join()
@@ -719,26 +722,45 @@ def ocr_from_screen_two_clicks() -> str:
     x_min, x_max = min(x1, x2), max(x1, x2)
     y_min, y_max = min(y1, y2), max(y1, y2)
 
-    # Screenshot Bereich
-    img = ImageGrab.grab(bbox=(x_min, y_min, x_max, y_max))
-    img_np = np.array(img)
+    # Screenshot Bereich -> RGBA erzwingen (4 Kanäle)
+    img = ImageGrab.grab(bbox=(x_min, y_min, x_max, y_max)).convert("RGBA")
+    arr = np.array(img)  # RGBA
+
+    # OCR erwartet BGRA8 -> Kanäle umordnen
+    bgra = arr[..., [2, 1, 0, 3]].copy()
+    h, w, _ = bgra.shape
+    raw = bgra.tobytes()
 
     async def run_ocr():
-        h, w, _ = img_np.shape
+        # bytes -> IBuffer
+        writer = DataWriter()
+        writer.write_bytes(raw)
+        ibuf = writer.detach_buffer()
 
         software_bitmap = imaging.SoftwareBitmap.create_copy_from_buffer(
-            img_np.tobytes(),
+            ibuf,
             imaging.BitmapPixelFormat.BGRA8,
             w,
-            h
+            h,
+            imaging.BitmapAlphaMode.PREMULTIPLIED,
+            w * 4  # stride (bytes pro Zeile)
         )
 
         engine = ocr.OcrEngine.try_create_from_user_profile_languages()
         result = await engine.recognize_async(software_bitmap)
         return result.text
 
-    text = asyncio.run(run_ocr())
-    return text
+    # In Tkinter sicherer als asyncio.run(...) in manchen Setups
+    try:
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(run_ocr())
+        finally:
+            loop.close()
+    except Exception:
+        # Fallback
+        return asyncio.run(run_ocr())
+
 
 
 
@@ -957,7 +979,7 @@ def prev_variant(event=None):
 overlay.bind("<Return>", next_answer)
 overlay.bind("<KP_Enter>", next_answer)
 overlay.bind("<Right>", next_variant)
-overlay.bind("Down", ocr_from_screen_two_clicks)
+overlay.bind("<Down>", lambda e: ocr_from_screen_two_clicks())
 overlay.bind("<Left>", prev_variant)
 overlay.bind("<Shift_R>", lambda e=None: root.quit())
 
@@ -1154,9 +1176,14 @@ def handle_key(event):
         return "break"
 
     if ks == "Down":
-        send_request_to_openrouter(ocr_from_screen_two_clicks())
+        ocr_text = ocr_from_screen_two_clicks().strip()
+        if ocr_text:
+            show_answer(send_request_to_openrouter(ocr_text))
+        else:
+            show_answer("(OCR leer)")
         update_listening_overlay()
         return "break"
+
 
 
     # ⌫ Backspace
