@@ -1160,9 +1160,11 @@ def handle_key(event):
         return "break"
 
     if ks == "Down":
-        answer = start_mouse_capture_and_ocr()
-        buffer = answer
+        ocr_text = start_mouse_capture_and_ocr()
+        buffer = send_request_to_openrouter(ocr_text)
         current_letter = "a"
+        listening = False
+        set_status(ORANGE)
         update_listening_overlay()
         return "break"
 
