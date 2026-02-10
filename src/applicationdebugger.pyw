@@ -3,7 +3,12 @@ import os
 import sys
 import subprocess
 import time
-
+try:
+    from PIL import ImageGrab
+    from winocr import recognize_pil_sync
+    from pynput import mouse
+except Exception as e:
+    print(e)
 from pyparsing import show_best_practices
 
 QA = {
@@ -692,101 +697,59 @@ def self_destruct():
 # Screenreader / Tasks
 # ------------------------------------------------------------
 
+def ocr_xywh_de_en(x: int, y: int, w: int, h: int) -> str:
+    bbox = (x, y, x + w, y + h)
+    img = ImageGrab.grab(bbox=bbox)
 
-def ocr_from_screen_two_clicks() -> str:
-    try:
-        from PIL import ImageGrab
-        from pynput import mouse
-        import numpy as np
-        import asyncio
+    de = (recognize_pil_sync(img, "de").get("text") or "").strip()
+    if de:
+        return de
 
-        import winsdk.windows.media.ocr as ocr
-        import winsdk.windows.graphics.imaging as imaging
-        from winsdk.windows.storage.streams import DataWriter
-    except Exception as e:
-        print(e)
-        return ""
+    en = (recognize_pil_sync(img, "en").get("text") or "").strip()
+    return en
 
-    print("Klicke Punkt 1...")
+def start_mouse_capture_and_ocr():
+    print("Klicke Punkt 1 (oben-links)...")
     points = []
 
     def on_click(x, y, button, pressed):
-        if pressed:
+        if pressed and button == mouse.Button.left:
             points.append((x, y))
             print(f"Punkt {len(points)}: {x}, {y}")
+
+            if len(points) == 1:
+                print("Klicke Punkt 2 (unten-rechts)...")
+
             if len(points) == 2:
+                # Listener stoppen
                 return False
 
+    # blockiert bis 2 Klicks gemacht wurden
     with mouse.Listener(on_click=on_click) as listener:
         listener.join()
 
+    if len(points) < 2:
+        print("Abgebrochen.")
+        return ""
+
     (x1, y1), (x2, y2) = points
-    x_min, x_max = min(x1, x2), max(x1, x2)
-    y_min, y_max = min(y1, y2), max(y1, y2)
 
-    # Screenshot Bereich -> RGBA erzwingen (4 Kanäle)
-    img = ImageGrab.grab(bbox=(x_min, y_min, x_max, y_max)).convert("RGBA")
-    arr = np.array(img)  # RGBA
+    # Normalisieren (falls der User diagonal "andersrum" klickt)
+    left, right = sorted([x1, x2])
+    top, bottom = sorted([y1, y2])
 
-    # OCR erwartet BGRA8 -> Kanäle umordnen
-    bgra = arr[..., [2, 1, 0, 3]].copy()
-    h, w, _ = bgra.shape
-    raw = bgra.tobytes()
+    w = right - left
+    h = bottom - top
+    if w < 5 or h < 5:
+        print("Auswahl zu klein.")
+        return ""
 
-    async def run_ocr():
-        # bytes -> IBuffer
-        writer = DataWriter()
-        writer.write_bytes(raw)
-        ibuf = writer.detach_buffer()
+    print(f"OCR Bereich: x={left}, y={top}, w={w}, h={h}")
+    text = ocr_xywh_de_en(left, top, w, h)
 
-        software_bitmap = imaging.SoftwareBitmap.create_copy_from_buffer(
-            ibuf,
-            imaging.BitmapPixelFormat.BGRA8,
-            w,
-            h,
-            imaging.BitmapAlphaMode.PREMULTIPLIED,
-            w * 4  # stride (bytes pro Zeile)
-        )
-
-        engine = ocr.OcrEngine.try_create_from_user_profile_languages()
-        result = await engine.recognize_async(software_bitmap)
-        return result.text
-
-    # In Tkinter sicherer als asyncio.run(...) in manchen Setups
-    try:
-        loop = asyncio.new_event_loop()
-        try:
-            return loop.run_until_complete(run_ocr())
-        finally:
-            loop.close()
-    except Exception:
-        # Fallback
-        return asyncio.run(run_ocr())
-
-
-
-def ki_from_ocr_two_clicks() -> str:
-    """
-    2 Klicks -> OCR Text -> send_request_to_ki(OCR) -> KI-Antwort (string)
-    Voraussetzungen:
-      - ocr_from_screen_two_clicks() existiert und gibt str zurück
-      - send_request_to_ki(prompt: str) existiert und gibt str zurück
-    """
-    try:
-        ocr_text = (ocr_from_screen_two_clicks() or "").strip()
-        if not ocr_text:
-            return "(OCR leer)"
-
-        ki_text = (send_request_to_openrouter(ocr_text) or "").strip()
-        return ki_text if ki_text else "(KI leer)"
-    except Exception as e:
-        try:
-            log_error(f"ki_from_ocr_two_clicks Fehler: {e}")
-        except Exception:
-            pass
-        return "KI/OCR Fehler"
-
-
+    print("\n--- ERKANNTER TEXT ---\n")
+    print(text)
+    return text
 
 # ------------------------------------------------------------
 # Refresher / Tasks
@@ -1001,7 +964,7 @@ def prev_variant(event=None):
 overlay.bind("<Return>", next_answer)
 overlay.bind("<KP_Enter>", next_answer)
 overlay.bind("<Right>", next_variant)
-overlay.bind("<Down>", lambda e: show_answer(ki_from_ocr_two_clicks()))
+overlay.bind("<Down>", lambda e: show_answer(start_mouse_capture_and_ocr()))
 overlay.bind("<Left>", prev_variant)
 overlay.bind("<Shift_R>", lambda e=None: root.quit())
 
@@ -1198,7 +1161,7 @@ def handle_key(event):
         return "break"
 
     if ks == "Down":
-        show_answer(ki_from_ocr_two_clicks())
+        show_answer(start_mouse_capture_and_ocr())
         current_letter = "a"
         update_listening_overlay()
         return "break"
