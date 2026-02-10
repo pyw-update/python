@@ -847,9 +847,7 @@ def send_request_to_openrouter_with_grab(question: str, bbox) -> str:
 
 def ocr_xywh_de_en(x: int, y: int, w: int, h: int) -> str:
     bbox = (x, y, x + w, y + h)
-    img = ImageGrab.grab(bbox=bbox)
-
-    send_request_to_openrouter_with_grab("ocr", img)
+    return send_request_to_openrouter_with_grab("Beantworte mir die Aufgabe.", bbox)
 
 def start_mouse_capture_and_ocr():
     print("Klicke Punkt 1 (oben-links)...")
