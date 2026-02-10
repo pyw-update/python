@@ -839,7 +839,8 @@ def send_request_to_openrouter_with_grab(question: str, bbox) -> str:
 
 def ocr_xywh_de_en(x: int, y: int, w: int, h: int) -> str:
     bbox = (x, y, x + w, y + h)
-    return send_request_to_openrouter_with_grab("Beantworte mir die Aufgabe.", bbox)
+    return send_request_to_openrouter_with_grab("Beantworte mir die Aufgabe. In maximal 10 Wörtern und wenn die Lösung da schon steht sagst du mir einfach die Lösung." \
+    "Bei einer zuordnungsaufgabe, machst du Antwort > Lösung | Antwort2 > Lösung2 usw.", bbox)
 
 def start_mouse_capture_and_ocr():
     print("Klicke Punkt 1 (oben-links)...")
@@ -1097,7 +1098,6 @@ def prev_variant(event=None):
 overlay.bind("<Return>", next_answer)
 overlay.bind("<KP_Enter>", next_answer)
 overlay.bind("<Right>", next_variant)
-overlay.bind("<Down>", lambda e: show_answer(start_mouse_capture_and_ocr()))
 overlay.bind("<Left>", prev_variant)
 overlay.bind("<Shift_R>", lambda e=None: root.quit())
 
@@ -1295,14 +1295,13 @@ def handle_key(event):
 
     if ks == "Down":
         answer = start_mouse_capture_and_ocr()  # liefert schon die Antwort (Vision)
-        buffer = answer
+        show_answer(answer)
+        update_label_with_current_variant()
+        buffer = ""
         current_letter = "a"
         listening = False
         set_status(ORANGE)
         return "break"
-
-
-
 
     # ⌫ Backspace
     if ks == "BackSpace":
