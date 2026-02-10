@@ -9,7 +9,6 @@ try:
     from pynput import mouse
 except Exception as e:
     print(e)
-from pyparsing import show_best_practices
 
 def ensure_default_env(env_file=".env", defaults=None):
     """
