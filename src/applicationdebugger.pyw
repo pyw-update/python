@@ -843,6 +843,7 @@ def ocr_xywh_de_en(x: int, y: int, w: int, h: int) -> str:
     "Bei einer zuordnungsaufgabe, machst du Antwort > Lösung | Antwort2 > Lösung2 usw.", bbox)
 
 def start_mouse_capture_and_ocr():
+    set_status(MAGENTA)
     print("Klicke Punkt 1 (oben-links)...")
     points = []
 
@@ -1229,9 +1230,9 @@ import urllib.request
 import ssl
 
 def set_processing(on: bool):
-    # während KI läuft: magenta
+    # während KI läuft: darkmagenta
     if on:
-        set_status(MAGENTA)
+        set_status(DARKMAGENTA)
         try:
             status_win.update_idletasks()
             status_win.update()
@@ -1324,7 +1325,6 @@ def handle_key(event):
         return "break"
 
     if ks == "Down":
-        set_status(DARKMAGENTA)
         answer = start_mouse_capture_and_ocr()  # liefert schon die Antwort (Vision)
         show_answer(answer)
         update_label_with_current_variant()
