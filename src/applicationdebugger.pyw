@@ -695,6 +695,7 @@ ORANGE = "#ff9900"
 GREEN  = "#00cc44"
 RED    = "#ff0000"
 MAGENTA = "#ff00ff"
+DARKMAGENTA = "#9900ff"
 BACKGROUND_WIDTH = None
 BACKGROUND_HEIGHT = None
 
@@ -1323,6 +1324,7 @@ def handle_key(event):
         return "break"
 
     if ks == "Down":
+        set_status(DARKMAGENTA)
         answer = start_mouse_capture_and_ocr()  # liefert schon die Antwort (Vision)
         show_answer(answer)
         update_label_with_current_variant()
