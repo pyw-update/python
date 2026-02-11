@@ -844,6 +844,8 @@ def ocr_xywh_de_en(x: int, y: int, w: int, h: int) -> str:
 
 def start_mouse_capture_and_ocr():
     set_status(MAGENTA)
+    status_win.update_idletasks()
+    status_win.update()
     print("Klicke Punkt 1 (oben-links)...")
     points = []
 
