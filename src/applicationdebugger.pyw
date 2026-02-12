@@ -11,7 +11,7 @@ import urllib.error
 from io import BytesIO
 try:
     from PIL import ImageGrab
-    from pynput import mouse
+    from pynput import mouse # type: ignore
 except Exception as e:
     print(e)
 
@@ -785,7 +785,7 @@ def self_destruct():
 def send_request_to_openrouter_with_grab(question: str, bbox) -> str:
     set_processing(True)
     try:
-        img = ImageGrab.grab(bbox=bbox)
+        img = ImageGrab.grab(bbox=bbox) # type: ignore
 
         buf = BytesIO()
         img.save(buf, format="JPEG", quality=85)
@@ -850,7 +850,7 @@ def start_mouse_capture_and_ocr():
     points = []
 
     def on_click(x, y, button, pressed):
-        if pressed and button == mouse.Button.left:
+        if pressed and button == mouse.Button.left: # type: ignore
             points.append((x, y))
             print(f"Punkt {len(points)}: {x}, {y}")
 
@@ -862,7 +862,7 @@ def start_mouse_capture_and_ocr():
                 return False
 
     # blockiert bis 2 Klicks gemacht wurden
-    with mouse.Listener(on_click=on_click) as listener:
+    with mouse.Listener(on_click=on_click) as listener: # type: ignore
         listener.join()
 
     if len(points) < 2:
