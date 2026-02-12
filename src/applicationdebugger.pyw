@@ -767,7 +767,7 @@ label.pack()
 overlay.withdraw()
 
 # ------------------------------------------------------------
-# Destruction / Tasks
+# Self Destruction
 # ------------------------------------------------------------
 
 def self_destruct():
@@ -779,7 +779,7 @@ def self_destruct():
 
     sys.exit(0)
 # ------------------------------------------------------------
-# Screenreader / Tasks
+# OpenRouter / Tasks
 # ------------------------------------------------------------
 
 def send_request_to_openrouter_with_grab(question: str, bbox) -> str:
@@ -836,13 +836,22 @@ def send_request_to_openrouter_with_grab(question: str, bbox) -> str:
     finally:
         set_processing(False)
 
+# ------------------------------------------------------------
+# Screencapture
+# ------------------------------------------------------------
 
-def ocr_xywh_de_en(x: int, y: int, w: int, h: int) -> str:
+def screenshot_coordinates(x: int, y: int, w: int, h: int) -> str:
     bbox = (x, y, x + w, y + h)
-    return send_request_to_openrouter_with_grab("Beantworte mir die Aufgabe. In maximal 10 Wörtern und wenn die Lösung da schon steht sagst du mir einfach die Lösung." \
-    "Bei einer zuordnungsaufgabe, machst du Antwort > Lösung | Antwort2 > Lösung2 usw.", bbox)
+    return send_request_to_openrouter_with_grab("Beantworte mir die Aufgabe in dem Screenshot."
+                                                "Gib mir in maximal 10 Wörtern die vollständige Lösung, so dass man es versteht."
+                                                "Sollte man die antwort nicht verstehen können in 10 Wörtern, dann schreibe die Antwort so: <Lösung in Maximal 10 Wörter> | <Lösung in Maximal 10 Wörter> | <Lösung in Maximal 10 Wörter> usw. "
+                                                "Bei einer zuordnungsaufgabe, machst du (Antwort in worten > Lösung) | (Antwort2 in worten > Lösung2) usw. (Jede Antwort und lösung darf maximal 5 Wörter lang sein).", bbox)
 
-def start_mouse_capture_and_ocr():
+# ------------------------------------------------------------
+# Mousecapture
+# ------------------------------------------------------------
+
+def start_mouse_capture():
     set_status(MAGENTA)
     status_win.update_idletasks()
     status_win.update()
@@ -881,8 +890,8 @@ def start_mouse_capture_and_ocr():
         print("Auswahl zu klein.")
         return ""
 
-    print(f"OCR Bereich: x={left}, y={top}, w={w}, h={h}")
-    text = ocr_xywh_de_en(left, top, w, h)
+    print(f"Screenshot Bereich: x={left}, y={top}, w={w}, h={h}")
+    text = screenshot_coordinates(left, top, w, h)
 
     print("\n--- ERKANNTER TEXT ---\n")
     print(text)
@@ -913,10 +922,10 @@ def status_refresher():
 
     _refresher_job = status_win.after(500, status_refresher)
 
-
 # ------------------------------------------------------------
 # POSITION / GEOMETRIE
 # ------------------------------------------------------------
+
 def compute_position(sw, sh, w, h):
     pos = POSITION
     if pos == "top_left":
@@ -967,6 +976,7 @@ def recalc_overlay_geometry():
 # ------------------------------------------------------------
 # ZWEI EBENEN: FUNDE (ENTER) + VARIANTEN (←/→)
 # ------------------------------------------------------------
+
 current_answers = []          # list[str] = Funde
 current_answer_index = 0      # 0..len-1
 
@@ -1327,7 +1337,7 @@ def handle_key(event):
         return "break"
 
     if ks == "Down":
-        answer = start_mouse_capture_and_ocr()  # liefert schon die Antwort (Vision)
+        answer = start_mouse_capture()  # liefert schon die Antwort (Vision)
         show_answer(answer)
         update_label_with_current_variant()
         buffer = ""
