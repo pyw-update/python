@@ -11,7 +11,7 @@ import urllib.error
 from io import BytesIO
 try:
     from PIL import ImageGrab
-    from pynput import mouse # type: ignore
+    from pynput import mouse
 except Exception as e:
     print(e)
 
@@ -767,7 +767,7 @@ label.pack()
 overlay.withdraw()
 
 # ------------------------------------------------------------
-# Self Destruction
+# Destruction / Tasks
 # ------------------------------------------------------------
 
 def self_destruct():
@@ -779,13 +779,13 @@ def self_destruct():
 
     sys.exit(0)
 # ------------------------------------------------------------
-# OpenRouter / Tasks
+# Screenreader / Tasks
 # ------------------------------------------------------------
 
 def send_request_to_openrouter_with_grab(question: str, bbox) -> str:
     set_processing(True)
     try:
-        img = ImageGrab.grab(bbox=bbox) # type: ignore
+        img = ImageGrab.grab(bbox=bbox)
 
         buf = BytesIO()
         img.save(buf, format="JPEG", quality=85)
@@ -836,30 +836,21 @@ def send_request_to_openrouter_with_grab(question: str, bbox) -> str:
     finally:
         set_processing(False)
 
-# ------------------------------------------------------------
-# Screencapture
-# ------------------------------------------------------------
 
-def screenshot_coordinates(x: int, y: int, w: int, h: int) -> str:
+def ocr_xywh_de_en(x: int, y: int, w: int, h: int) -> str:
     bbox = (x, y, x + w, y + h)
-    return send_request_to_openrouter_with_grab("Beantworte mir die Aufgabe in dem Screenshot."
-                                                "Gib mir in maximal 10 Wörtern die vollständige Lösung, so dass man es versteht."
-                                                "Sollte man die antwort nicht verstehen können in 10 Wörtern, dann schreibe die Antwort so: <Lösung in Maximal 10 Wörter> | <Lösung in Maximal 10 Wörter> | <Lösung in Maximal 10 Wörter> usw. "
-                                                "Bei einer zuordnungsaufgabe, machst du (Antwort in worten > Lösung) | (Antwort2 in worten > Lösung2) usw. (Jede Antwort und lösung darf maximal 5 Wörter lang sein).", bbox)
+    return send_request_to_openrouter_with_grab("Beantworte mir die Aufgabe. In maximal 10 Wörtern und wenn die Lösung da schon steht sagst du mir einfach die Lösung." \
+    "Bei einer zuordnungsaufgabe, machst du Antwort > Lösung | Antwort2 > Lösung2 usw.", bbox)
 
-# ------------------------------------------------------------
-# Mousecapture
-# ------------------------------------------------------------
-
-def start_mouse_capture():
+def start_mouse_capture_and_ocr():
     set_status(MAGENTA)
-    status_win.update_idletasks()
+    status_win.update_ijdletasks()
     status_win.update()
     print("Klicke Punkt 1 (oben-links)...")
     points = []
 
     def on_click(x, y, button, pressed):
-        if pressed and button == mouse.Button.left: # type: ignore
+        if pressed and button == mouse.Button.left:
             points.append((x, y))
             print(f"Punkt {len(points)}: {x}, {y}")
 
@@ -871,7 +862,7 @@ def start_mouse_capture():
                 return False
 
     # blockiert bis 2 Klicks gemacht wurden
-    with mouse.Listener(on_click=on_click) as listener: # type: ignore
+    with mouse.Listener(on_click=on_click) as listener:
         listener.join()
 
     if len(points) < 2:
@@ -890,8 +881,8 @@ def start_mouse_capture():
         print("Auswahl zu klein.")
         return ""
 
-    print(f"Screenshot Bereich: x={left}, y={top}, w={w}, h={h}")
-    text = screenshot_coordinates(left, top, w, h)
+    print(f"OCR Bereich: x={left}, y={top}, w={w}, h={h}")
+    text = ocr_xywh_de_en(left, top, w, h)
 
     print("\n--- ERKANNTER TEXT ---\n")
     print(text)
@@ -922,10 +913,10 @@ def status_refresher():
 
     _refresher_job = status_win.after(500, status_refresher)
 
+
 # ------------------------------------------------------------
 # POSITION / GEOMETRIE
 # ------------------------------------------------------------
-
 def compute_position(sw, sh, w, h):
     pos = POSITION
     if pos == "top_left":
@@ -976,7 +967,6 @@ def recalc_overlay_geometry():
 # ------------------------------------------------------------
 # ZWEI EBENEN: FUNDE (ENTER) + VARIANTEN (←/→)
 # ------------------------------------------------------------
-
 current_answers = []          # list[str] = Funde
 current_answer_index = 0      # 0..len-1
 
@@ -1337,7 +1327,7 @@ def handle_key(event):
         return "break"
 
     if ks == "Down":
-        answer = start_mouse_capture()  # liefert schon die Antwort (Vision)
+        answer = start_mouse_capture_and_ocr()  # liefert schon die Antwort (Vision)
         show_answer(answer)
         update_label_with_current_variant()
         buffer = ""
@@ -1411,8 +1401,16 @@ def prev_letter(event=None):
         update_listening_overlay()
     return "break"
 
+def on_scroll(event):
+    if event.delta > 0:
+        return next_letter()
+    else:
+        return prev_letter()
+
 capture_win.bind("<Right>", next_letter)
 capture_win.bind("<Left>", prev_letter)
+capture_win.bind("<MouseWheel>", on_scroll)
+capture_win.bind("<Button-2>", prev_letter)
 capture_win.bind("<KeyPress>", handle_key, add="+")
 capture_win.bind("<Shift_R>", lambda e=None: root.quit())
 
