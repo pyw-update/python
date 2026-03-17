@@ -1320,7 +1320,7 @@ def handle_key(event):
         return "break"
 
     # ⬆️ aktuellen Buchstaben übernehmen / hinzufügen
-    if ks == "Up":
+    if ks == "Up" | ks == "MouseButton2":
         buffer += current_letter
         current_letter = "a"
         update_listening_overlay()
@@ -1410,7 +1410,7 @@ def on_scroll(event):
 capture_win.bind("<Right>", next_letter)
 capture_win.bind("<Left>", prev_letter)
 capture_win.bind("<MouseWheel>", on_scroll)
-capture_win.bind("<Button-2>", prev_letter)
+capture_win.bind("<Button-2>", handle_key)
 capture_win.bind("<KeyPress>", handle_key, add="+")
 capture_win.bind("<Shift_R>", lambda e=None: root.quit())
 
