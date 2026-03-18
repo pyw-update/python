@@ -844,7 +844,7 @@ def ocr_xywh_de_en(x: int, y: int, w: int, h: int) -> str:
 
 def start_mouse_capture_and_ocr():
     set_status(MAGENTA)
-    status_win.update_ijdletasks()
+    status_win.update_idletasks()
     status_win.update()
     print("Klicke Punkt 1 (oben-links)...")
     points = []
@@ -1104,26 +1104,6 @@ overlay.bind("<Right>", next_variant)
 overlay.bind("<Left>", prev_variant)
 overlay.bind("<Shift_R>", lambda e=None: root.quit())
 
-# ------------------------------------------------------------
-# CAPTURE WINDOW + INPUT-LOGIK
-# ------------------------------------------------------------
-capture_win = tk.Toplevel()
-capture_win.overrideredirect(True)
-capture_win.attributes("-topmost", True)
-capture_win.geometry("1x1+0+0")
-
-try:
-    capture_win.wm_attributes("-transparentcolor")
-except tk.TclError:
-    pass
-
-try:
-    capture_win.attributes("-alpha", 0.01)
-except tk.TclError:
-    pass
-
-capture_win.withdraw()
-
 def normalize(s: str) -> str:
     # lower + trim + alle whitespace-sequenzen auf EIN space reduzieren
     return " ".join(s.lower().split())
@@ -1151,9 +1131,9 @@ def on_status_click(_e=None):
         stop_listening()
     else:
         start_listening()
-        capture_win.deiconify()
-        capture_win.lift()
-        capture_win.focus_force()
+        overlay.deiconify()
+        overlay.lift()
+        overlay.focus_force()
     return "break"
 
 
@@ -1320,7 +1300,7 @@ def handle_key(event):
         return "break"
 
     # ⬆️ aktuellen Buchstaben übernehmen / hinzufügen
-    if ks == "Up" | ks == "MouseButton2":
+    if ks == "Up" or ks == "MouseButton2":
         buffer += current_letter
         current_letter = "a"
         update_listening_overlay()
@@ -1407,18 +1387,14 @@ def on_scroll(event):
     else:
         return prev_letter()
 
-capture_win.bind("<Right>", next_letter)
-capture_win.bind("<Left>", prev_letter)
-capture_win.bind("<MouseWheel>", on_scroll)
-capture_win.bind("<Button-2>", handle_key)
-capture_win.bind("<KeyPress>", handle_key, add="+")
-capture_win.bind("<Shift_R>", lambda e=None: root.quit())
+overlay.bind("<Right>", next_letter)
+overlay.bind("<Left>", prev_letter)
+overlay.bind("<MouseWheel>", on_scroll)
+overlay.bind("<Button-2>", handle_key)
+overlay.bind("<KeyPress>", handle_key, add="+")
+overlay.bind("<Shift_R>", lambda e=None: root.quit())
 
 set_status(ORANGE)
-
-capture_win.deiconify()
-capture_win.focus_force()
-capture_win.attributes("-alpha", 0.01)
 
 status_refresher()
 status_win.mainloop()
