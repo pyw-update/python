@@ -1300,7 +1300,7 @@ def handle_key(event):
         return "break"
 
     # ⬆️ aktuellen Buchstaben übernehmen / hinzufügen
-    if ks == "Up" or ks == "MouseButton2":
+    if ks == "Up" or ks == "??":
         buffer += current_letter
         current_letter = "a"
         update_listening_overlay()
@@ -1382,7 +1382,7 @@ def prev_letter(event=None):
     return "break"
 
 def on_scroll(event):
-    if event.delta > 0:
+    if event.delta < 0:
         return next_letter()
     else:
         return prev_letter()
