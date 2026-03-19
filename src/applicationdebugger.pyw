@@ -1121,6 +1121,7 @@ def set_search_bindings():
     overlay.bind("<Left>", prev_letter)
     overlay.bind("<MouseWheel>", on_scroll)
     overlay.bind("<Button-2>", handle_key)
+    overlay.bind("<Button-3>", handle_key)
     overlay.bind("<KeyPress>", handle_key, add="+")
     overlay.bind("<Shift_R>", lambda e=None: root.quit())
 
@@ -1345,7 +1346,7 @@ def handle_key(event):
         return "break"
 
     # ; = Suche / abschicken (nicht in Text übernehmen!)
-    if ks == "semicolon" or ch == ";":
+    if ks == "semicolon" or ch == ";" or ks == "Button-3":
         listening = False
         set_status(ORANGE)
         overlay.withdraw()
