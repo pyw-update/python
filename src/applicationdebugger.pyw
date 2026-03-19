@@ -1098,6 +1098,16 @@ def prev_variant(event=None):
     return "break"
 
 # Overlay Bindings (Antwort-Modus)
+
+def scroll_answers(event):
+    if event.delta < 0:
+        return next_variant()
+    else:
+        return prev_variant()
+    
+overlay.bind("<MouseWheel>", scroll_answers)
+overlay.bind("<Button-2>", next_answer)
+
 overlay.bind("<Return>", next_answer)
 overlay.bind("<KP_Enter>", next_answer)
 overlay.bind("<Right>", next_variant)
