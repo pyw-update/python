@@ -1104,20 +1104,29 @@ def scroll_answers(event):
         return next_variant()
     else:
         return prev_variant()
-    
-overlay.bind("<MouseWheel>", scroll_answers)
-overlay.bind("<Button-2>", next_answer)
 
-overlay.bind("<Return>", next_answer)
-overlay.bind("<KP_Enter>", next_answer)
-overlay.bind("<Right>", next_variant)
-overlay.bind("<Left>", prev_variant)
-overlay.bind("<Shift_R>", lambda e=None: root.quit())
+def set_answer_bindings():
+    overlay.bind("<MouseWheel>", scroll_answers)
+    overlay.bind("<Button-2>", next_answer)
+    overlay.bind("<Button-1>", next_answer)
+
+    overlay.bind("<Return>", next_answer)
+    overlay.bind("<KP_Enter>", next_answer)
+    overlay.bind("<Right>", next_variant)
+    overlay.bind("<Left>", prev_variant)
+    overlay.bind("<Shift_R>", lambda e=None: root.quit())
+
+def set_search_bindings():
+    overlay.bind("<Right>", next_letter)
+    overlay.bind("<Left>", prev_letter)
+    overlay.bind("<MouseWheel>", on_scroll)
+    overlay.bind("<Button-2>", handle_key)
+    overlay.bind("<KeyPress>", handle_key, add="+")
+    overlay.bind("<Shift_R>", lambda e=None: root.quit())
 
 def normalize(s: str) -> str:
     # lower + trim + alle whitespace-sequenzen auf EIN space reduzieren
     return " ".join(s.lower().split())
-
 
 def start_listening():
     global listening, buffer, current_letter
@@ -1141,14 +1150,15 @@ def on_status_click(_e=None):
         stop_listening()
     else:
         start_listening()
+        set_search_bindings()
         overlay.deiconify()
         overlay.lift()
         overlay.focus_force()
     return "break"
 
-
-status_win.bind("<Button-1>", on_status_click)
-status_win.bind("<Shift_R>", lambda e=None: root.quit())
+def set_status_win_binds():
+    status_win.bind("<Button-1>", on_status_click)
+    status_win.bind("<Shift_R>", lambda e=None: root.quit())
 
 def get_initials(s):
     words = [w for w in s.split() if w and w[0].isalpha()]
@@ -1356,6 +1366,7 @@ def handle_key(event):
         ans = find_answer(final_text)
 
         if ans:
+            set_answer_bindings()
             show_answer(ans)
         else:
             set_status(RED)
@@ -1397,14 +1408,8 @@ def on_scroll(event):
     else:
         return prev_letter()
 
-overlay.bind("<Right>", next_letter)
-overlay.bind("<Left>", prev_letter)
-overlay.bind("<MouseWheel>", on_scroll)
-overlay.bind("<Button-2>", handle_key)
-overlay.bind("<KeyPress>", handle_key, add="+")
-overlay.bind("<Shift_R>", lambda e=None: root.quit())
-
 set_status(ORANGE)
+set_status_win_binds()
 
 status_refresher()
 status_win.mainloop()
