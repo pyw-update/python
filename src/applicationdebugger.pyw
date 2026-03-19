@@ -1120,6 +1120,7 @@ def set_search_bindings():
     overlay.bind("<Right>", next_letter)
     overlay.bind("<Left>", prev_letter)
     overlay.bind("<MouseWheel>", on_scroll)
+    overlay.bind("<Button-1>", handle_key)
     overlay.bind("<Button-2>", handle_key)
     overlay.bind("<Button-3>", lambda event: handle_search_query(buffer))
     overlay.bind("<KeyPress>", handle_key, add="+")
