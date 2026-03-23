@@ -1105,10 +1105,9 @@ def scroll_answers(event):
     else:
         return prev_variant()
 
-def set_answer_bindings():
+def set_answer_bindings(overlay: tk.Toplevel):
     overlay.bind("<MouseWheel>", scroll_answers)
     overlay.bind("<Button-2>", next_answer)
-    overlay.bind("<Button-1>", next_answer)
 
     overlay.bind("<Return>", next_answer)
     overlay.bind("<KP_Enter>", next_answer)
@@ -1116,11 +1115,10 @@ def set_answer_bindings():
     overlay.bind("<Left>", prev_variant)
     overlay.bind("<Shift_R>", lambda e=None: root.quit())
 
-def set_search_bindings():
+def set_search_bindings(overlay: tk.Toplevel):
     overlay.bind("<Right>", next_letter)
     overlay.bind("<Left>", prev_letter)
     overlay.bind("<MouseWheel>", on_scroll)
-    overlay.bind("<Button-1>", handle_key)
     overlay.bind("<Button-2>", handle_key)
     overlay.bind("<Button-3>", lambda event: handle_search_query(buffer))
     overlay.bind("<KeyPress>", handle_key, add="+")
@@ -1152,7 +1150,7 @@ def on_status_click(_e=None):
         stop_listening()
     else:
         start_listening()
-        set_search_bindings()
+        set_search_bindings(status_win)
         overlay.deiconify()
         overlay.lift()
         overlay.focus_force()
@@ -1383,7 +1381,7 @@ def handle_search_query(buffer: str):
     ans = find_answer(final_text)
 
     if ans:
-        set_answer_bindings()
+        set_answer_bindings(status_win)
         show_answer(ans)
     else:
         set_status(RED)
