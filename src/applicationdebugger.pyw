@@ -24,6 +24,8 @@ def ensure_default_env(env_file=".env", defaults=None):
             "API_KEY": "test123",
             "FONT_SIZE": "7",
             "TEXT_POSITION": "bottom_center",
+            "TEXT_COLOR": "#d3d3d3",
+            "ANSWER_BG_COLOR": "#eeeeee"
         }
     if not os.path.exists(env_file):
         with open(env_file, "w", encoding="utf-8") as f:
@@ -687,10 +689,10 @@ QA = {
 FONT_NAME = "Arial"
 FONT_SIZE = cfg.get("FONT_SIZE", 7)
 FONT_STYLE = "normal"
-TEXT_COLOR = "#d3d3d3"
-ANSWER_BG_COLOR = "#eeeeee"
+TEXT_COLOR = cfg.get("TEXT_COLOR", "#d3d3d3")
+ANSWER_BG_COLOR = cfg.get("ANSWER_BG_COLOR", "#eeeeee")
 POSITION = cfg.get("TEXT_POSITION", "bottom_center")
-MAX_WIDTH_RATIO = 0.45
+MAX_WIDTH_RATIO = 0.50
 ORANGE = "#ff9900"
 GREEN  = "#00cc44"
 RED    = "#ff0000"
@@ -1057,7 +1059,6 @@ def show_answer(answers):
 
     overlay.deiconify()
     overlay.lift()
-    label.focus_force()
 
 def next_answer(event=None):
     """ENTER -> nächster Fund (zyklisch). Varianten reset."""
@@ -1153,7 +1154,6 @@ def on_status_click(_e=None):
         set_search_bindings(status_win)
         overlay.deiconify()
         overlay.lift()
-        overlay.focus_force()
     return "break"
 
 def set_status_win_binds():
