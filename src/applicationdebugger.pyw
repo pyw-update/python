@@ -1,10 +1,5 @@
-Hier ist der überarbeitete vollständige Code. Ich habe die mehrfachen Bindings entfernt, `buffer` sauber global zurückgesetzt, die API-Aufrufe in Threads ausgelagert und `ssl.create_default_context()` statt unsicherem SSL-Kontext verwendet; `urllib.request.urlopen` unterstützt dafür Timeout und SSL-Kontext, und Python empfiehlt `create_default_context()` mit sicheren Defaults. ([Python documentation][1])
-Außerdem habe ich den gefährlichen Ordner-Löschbefehl entfernt: `delete` beendet jetzt nur noch das Programm.
-
-```python
 import tkinter as tk
 import os
-import sys
 import time
 import json
 import ssl
@@ -118,6 +113,10 @@ cfg = init_env(".env")
 #     "Nenne die drei Schutzziele.": "Vertraulichkeit | Integrität | Verfügbarkeit",
 # }
 #
+# Wichtig:
+# - Mehrere Lösungen innerhalb EINER Antwort trennst du mit |.
+# - Mehrere passende Fragen werden automatisch als mehrere Antworten behandelt.
+
 QA = {
     "test est st t": "Windows Updates",
     "During a routine inspection, a technician discovered that software that was installed on a computer was secretly collecting data about websites that were visited by users of the computer. Which type of threat is affecting this computer?": "ftprlad | setnwdtsfeu | sptnfua",
@@ -1168,6 +1167,25 @@ def split_variants(text: str) -> list[str]:
     return parts if parts else [text.strip()]
 
 
+def load_answer_at(index: int, variant_index: int = 0):
+    """Lädt eine Antwort und die dazugehörigen |-Varianten."""
+    global current_answer_index, current_variants, current_variant_index
+
+    if not current_answers:
+        current_answer_index = 0
+        current_variants = []
+        current_variant_index = 0
+        return
+
+    current_answer_index = index % len(current_answers)
+    current_variants = split_variants(current_answers[current_answer_index])
+
+    if not current_variants:
+        current_variants = [""]
+
+    current_variant_index = max(0, min(variant_index, len(current_variants) - 1))
+
+
 def update_label_with_current_variant():
     if not current_answers:
         label.configure(text="(keine Antwort)", anchor="w", fg=RED)
@@ -1197,8 +1215,7 @@ def update_label_with_current_variant():
 
 
 def show_answer(answers):
-    global current_answers, current_answer_index
-    global current_variants, current_variant_index
+    global current_answers
 
     if answers is None:
         current_answers = []
@@ -1208,9 +1225,6 @@ def show_answer(answers):
         s = str(answers).strip()
         current_answers = [s] if s else []
 
-    current_answer_index = 0
-    current_variant_index = 0
-
     if not current_answers:
         label.configure(text="(keine Antwort)", anchor="w", fg=RED)
         recalc_overlay_geometry()
@@ -1219,9 +1233,7 @@ def show_answer(answers):
         overlay.focus_force()
         return
 
-    current_variants = split_variants(current_answers[current_answer_index])
-    current_variant_index = 0
-
+    load_answer_at(0, 0)
     update_label_with_current_variant()
     recalc_overlay_geometry()
 
@@ -1230,58 +1242,86 @@ def show_answer(answers):
     overlay.focus_force()
 
 
-def next_answer(event=None):
-    global current_answer_index, current_variants, current_variant_index
+def refresh_answer_view():
+    update_label_with_current_variant()
+    recalc_overlay_geometry()
+    overlay.deiconify()
+    overlay.lift()
+    overlay.focus_force()
 
+
+def next_answer(event=None):
     if not current_answers:
         return "break"
 
-    current_answer_index = (current_answer_index + 1) % len(current_answers)
-    current_variants = split_variants(current_answers[current_answer_index])
-    current_variant_index = 0
+    load_answer_at(current_answer_index + 1, 0)
+    refresh_answer_view()
 
-    update_label_with_current_variant()
-    recalc_overlay_geometry()
-    overlay.focus_force()
+    return "break"
+
+
+def prev_answer(event=None):
+    if not current_answers:
+        return "break"
+
+    load_answer_at(current_answer_index - 1, 0)
+    refresh_answer_view()
 
     return "break"
 
 
 def next_variant(event=None):
+    """
+    Geht zur nächsten |-Variante.
+    Wenn die letzte Variante erreicht ist, springt es automatisch zur nächsten Antwort.
+    """
     global current_variant_index
 
-    if len(current_variants) <= 1:
+    if not current_answers:
         return "break"
 
-    current_variant_index = (current_variant_index + 1) % len(current_variants)
+    if current_variant_index < len(current_variants) - 1:
+        current_variant_index += 1
+    else:
+        load_answer_at(current_answer_index + 1, 0)
 
-    update_label_with_current_variant()
-    recalc_overlay_geometry()
-    overlay.focus_force()
+    refresh_answer_view()
 
     return "break"
 
 
 def prev_variant(event=None):
+    """
+    Geht zur vorherigen |-Variante.
+    Wenn die erste Variante erreicht ist, springt es automatisch zur vorherigen Antwort.
+    """
     global current_variant_index
 
-    if len(current_variants) <= 1:
+    if not current_answers:
         return "break"
 
-    current_variant_index = (current_variant_index - 1) % len(current_variants)
+    if current_variant_index > 0:
+        current_variant_index -= 1
+    else:
+        previous_answer_index = (current_answer_index - 1) % len(current_answers)
+        previous_variants = split_variants(current_answers[previous_answer_index])
+        load_answer_at(previous_answer_index, len(previous_variants) - 1)
 
-    update_label_with_current_variant()
-    recalc_overlay_geometry()
-    overlay.focus_force()
+    refresh_answer_view()
 
     return "break"
 
 
 def scroll_answers(event):
-    if event.delta < 0:
+    # Windows: event.delta > 0 nach oben, < 0 nach unten.
+    # Button-4/Button-5 sind für andere Systeme unschädlich und machen die Funktion robuster.
+    num = getattr(event, "num", None)
+    delta = getattr(event, "delta", 0)
+
+    if delta < 0 or num == 5:
         return next_variant()
-    else:
-        return prev_variant()
+
+    return prev_variant()
 
 
 # ------------------------------------------------------------
@@ -1293,6 +1333,8 @@ MODE_BINDINGS = [
     "<MouseWheel>",
     "<Button-2>",
     "<Button-3>",
+    "<Button-4>",
+    "<Button-5>",
     "<Return>",
     "<KP_Enter>",
     "<Right>",
@@ -1312,12 +1354,22 @@ def clear_mode_bindings():
 def set_answer_bindings():
     clear_mode_bindings()
 
+    # Mausrad: durch Varianten laufen, danach automatisch nächste/vorherige Antwort.
     root.bind_all("<MouseWheel>", scroll_answers)
-    root.bind_all("<Button-2>", next_answer)
+    root.bind_all("<Button-4>", scroll_answers)
+    root.bind_all("<Button-5>", scroll_answers)
 
+    # Windows:
+    # Button-2 = Mausrad-Klick
+    # Button-3 = Rechtsklick
+    root.bind_all("<Button-2>", next_answer)
+    root.bind_all("<Button-3>", next_answer)
+
+    # Enter: nächste Antwort
     root.bind_all("<Return>", next_answer)
     root.bind_all("<KP_Enter>", next_answer)
 
+    # Pfeile: Varianten + automatischer Antwortwechsel
     root.bind_all("<Right>", next_variant)
     root.bind_all("<Left>", prev_variant)
 
@@ -1329,6 +1381,8 @@ def set_search_bindings():
 
     root.bind_all("<KeyPress>", handle_key)
     root.bind_all("<MouseWheel>", on_scroll)
+    root.bind_all("<Button-4>", on_scroll)
+    root.bind_all("<Button-5>", on_scroll)
     root.bind_all("<Button-3>", lambda event: handle_search_query(buffer))
     root.bind_all("<Shift_R>", close_app)
 
@@ -1496,10 +1550,13 @@ def prev_letter(event=None):
 
 
 def on_scroll(event):
-    if event.delta < 0:
+    num = getattr(event, "num", None)
+    delta = getattr(event, "delta", 0)
+
+    if delta < 0 or num == 5:
         return next_letter()
-    else:
-        return prev_letter()
+
+    return prev_letter()
 
 
 # ------------------------------------------------------------
