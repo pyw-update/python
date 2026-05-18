@@ -1384,6 +1384,7 @@ def set_search_bindings():
     root.bind_all("<Button-4>", on_scroll)
     root.bind_all("<Button-5>", on_scroll)
     root.bind_all("<Button-3>", lambda event: handle_search_query(buffer))
+    root.bind_all("<KP_Enter>", lambda event: handle_search_query(buffer))
     root.bind_all("<Shift_R>", close_app)
 
 
