@@ -919,25 +919,248 @@ def run_worker(work_fn, done_fn=None, fallback_error="Fehler"):
 # ------------------------------------------------------------
 
 KI_QA_DEFAULT_INSTRUCTION = """
-Du bist ein Aufgaben-Löser. Antworte ausschließlich als Raw Text in genau einer Zeile.
-Gib nur die finale Lösung aus. Wiederhole niemals die Frage.
-Kein Doppelpunkt, kein JSON, keine Markdown-Formatierung, keine Codeblöcke, keine Erklärung, keine Emojis, keine Aufzählung, keine Labels.
+Du bist ein Aufgaben-Löser für ein Overlay. Antworte ausschließlich als Raw Text in genau einer Zeile.
 
-Regeln:
-1. Ausgabe besteht nur aus der finalen Antwort.
-2. Wenn es mehrere richtige Antworten gibt, trenne sie mit " | ".
-3. Wenn eine einzelne Antwort länger als 50 Zeichen ist, kürze sie ab: Nimm nur den ersten Buchstaben jedes Wortes der Antwort.
-4. Wenn es mehrere lange Antworten gibt, kürze jede Antwort einzeln ab und trenne sie mit " | ".
-5. Bei Verbindungsaufgaben nutze dieses Format: Teil1 > Teil2 | Teil3 > Teil4
-6. Bei Verbindungsaufgaben keine Sätze erklären, nur die Paare ausgeben.
-7. Keine Zusatztexte wie "Die Antwort ist", "Hier ist", "Lösung", "Antwort" oder ähnliches.
-8. Keine Zeilenumbrüche. Alles muss in einer einzigen Zeile stehen.
-9. Wenn die Aufgabe aus einem Bild kommt, erkenne die Aufgabe und gib nur die Lösung im gleichen Format aus.
+EXTREM WICHTIG:
+Gib NUR die finale Lösung aus.
+Wiederhole NIEMALS die Frage.
+Schreibe NIEMALS den Aufgabentitel.
+Schreibe NIEMALS "Antwort:", "Lösung:", "Die Antwort ist", "Aufgabe:", "Frage:", "Titel:" oder ähnliche Labels.
+Schreibe keine Erklärung.
+Schreibe kein JSON.
+Schreibe kein Markdown.
+Schreibe keine Aufzählung.
+Schreibe keine Nummerierung.
+Schreibe keine Emojis.
+Schreibe keine Zeilenumbrüche.
+
+FORMAT:
+- Eine einzelne Antwort: nur die Antwort
+- Mehrere Antworten: Antwort1 | Antwort2 | Antwort3
+- Zuordnungsaufgabe: Teil1 > Teil2 | Teil3 > Teil4
+
+ABKÜRZUNGSREGEL:
+Wenn eine einzelne Antwort länger als 50 Zeichen ist, schreibe nur die Anfangsbuchstaben aller Wörter dieser Antwort.
+Wenn es mehrere lange Antworten gibt, kürze jede Antwort einzeln ab und trenne sie weiter mit " | ".
+
+WENN EIN BILD GESENDET WIRD:
+Ignoriere Überschriften, Fragetitel, Aufgabennamen und Einleitungstexte.
+Gib nur das aus, was als Lösung eingetragen werden muss.
+
+RICHTIG:
+Router
+ftprlad | setnwdtsfeu | sptnfua
+first mode > user EXEC mode | second mode > privileged EXEC mode
+
+FALSCH:
+What is an ISP?: ftprlad | setnwdtsfeu
+Antwort: Router
+Die Lösung ist Router
+Die Aufgabe heißt ...
 """.strip()
 
 
 def one_line(text) -> str:
     return " ".join(str(text or "").strip().split())
+
+
+def strip_wrapping_quotes(text: str) -> str:
+    s = one_line(text)
+
+    while len(s) >= 2 and (
+        (s[0] == '"' and s[-1] == '"')
+        or (s[0] == "'" and s[-1] == "'")
+        or (s[0] == "“" and s[-1] == "”")
+        or (s[0] == "„" and s[-1] == "“")
+    ):
+        s = s[1:-1].strip()
+
+    return s
+
+
+def strip_bad_ai_prefix(text: str) -> str:
+    s = strip_wrapping_quotes(text)
+
+    if not s:
+        return ""
+
+    # Modell schreibt manchmal: "Die Aufgabe heißt ... | Antwort1 | Antwort2"
+    # Dann ist der erste Pipe-Teil nur Titel/Frage und wird entfernt.
+    pipe_chars = ["|", "｜", "¦", "‖"]
+    for pc in pipe_chars:
+        if pc in s:
+            parts = [p.strip() for p in s.split(pc) if p.strip()]
+            if len(parts) > 1:
+                first_low = parts[0].lower()
+                first_looks_like_title = any(
+                    marker in first_low
+                    for marker in (
+                        "aufgabe",
+                        "frage",
+                        "heißt",
+                        "heisst",
+                        "title",
+                        "task",
+                        "question",
+                        "called",
+                    )
+                )
+                if first_looks_like_title:
+                    s = " | ".join(parts[1:]).strip()
+            break
+
+    bad_prefixes = [
+        "antwort:",
+        "antwort :",
+        "lösung:",
+        "lösung :",
+        "loesung:",
+        "loesung :",
+        "die antwort ist",
+        "die lösung ist",
+        "die loesung ist",
+        "aufgabe:",
+        "aufgabe :",
+        "frage:",
+        "frage :",
+        "titel:",
+        "titel :",
+        "task:",
+        "task :",
+        "question:",
+        "question :",
+        "title:",
+        "title :",
+        "final answer:",
+        "final answer :",
+        "answer:",
+        "answer :",
+        "solution:",
+        "solution :",
+    ]
+
+    changed = True
+    while changed:
+        changed = False
+        low = s.lower().strip()
+
+        for prefix in bad_prefixes:
+            if low.startswith(prefix):
+                s = s[len(prefix):].strip()
+                changed = True
+                break
+
+    # Sätze wie "Die Aufgabe heißt X. Lösung" entfernen.
+    low = s.lower().strip()
+    title_sentence_starts = (
+        "die aufgabe heißt",
+        "die aufgabe heisst",
+        "die frage heißt",
+        "die frage heisst",
+        "the task is called",
+        "the question is",
+        "the title is",
+    )
+
+    if low.startswith(title_sentence_starts):
+        for sep in (". ", ": ", " - "):
+            if sep in s:
+                s = s.split(sep, 1)[1].strip()
+                break
+
+    # Falls Modell doch "Frage: Antwort" schreibt:
+    # Nur abschneiden, wenn links wie eine Frage/Aufgabe aussieht.
+    if ":" in s:
+        left, right = s.split(":", 1)
+        left_clean = left.strip()
+        right_clean = right.strip()
+        left_low = left_clean.lower()
+
+        looks_like_question = (
+            "?" in left_clean
+            or left_low.startswith((
+                "what ",
+                "which ",
+                "why ",
+                "how ",
+                "when ",
+                "where ",
+                "who ",
+                "wer ",
+                "was ",
+                "wie ",
+                "warum ",
+                "welche ",
+                "welcher ",
+                "welches ",
+                "nenne ",
+                "ordne ",
+                "verbinde ",
+                "match ",
+                "select ",
+                "choose ",
+            ))
+            or any(x in left_low for x in ("aufgabe", "frage", "question", "task"))
+            or len(left_clean) > 18
+        )
+
+        if looks_like_question and right_clean:
+            s = right_clean
+
+    return strip_wrapping_quotes(s)
+
+
+def normalize_single_variant(text: str) -> str:
+    p = strip_bad_ai_prefix(text)
+
+    if not p:
+        return ""
+
+    p = p.strip()
+    p = p.lstrip("-").lstrip("*").lstrip("•").strip()
+
+    # Nummerierungen entfernen:
+    # "1. Antwort" -> "Antwort"
+    # "1) Antwort" -> "Antwort"
+    p = re.sub(r"^\s*\d+\s*[\.\)]\s*", "", p).strip()
+
+    # Markdown-Reste entfernen
+    p = p.replace("**", "").replace("__", "").strip()
+
+    return strip_bad_ai_prefix(p)
+
+
+def normalize_ai_answer(text: str) -> str:
+    s = "" if text is None else str(text)
+
+    # Manche Server geben Python-Dict-Strings zurück.
+    # Die häufigsten Antwortfelder rausziehen, falls es so aussieht.
+    for key in ("response", "answer", "text", "message", "Message"):
+        pattern = rf"""['"]{key}['"]\s*:\s*['"]([^'"]+)['"]"""
+        match = re.search(pattern, s)
+        if match:
+            s = match.group(1)
+            break
+
+    s = s.replace("\r\n", "\n").replace("\r", "\n")
+    s = s.replace("｜", "|").replace("¦", "|").replace("‖", "|")
+    s = s.replace("→", ">").replace("⇒", ">").replace("->", ">")
+
+    # Zeilenumbrüche aus KI-Listen werden Varianten.
+    s = re.sub(r"\n+", " | ", s)
+
+    s = strip_bad_ai_prefix(s)
+
+    if not s:
+        return ""
+
+    parts = [normalize_single_variant(p) for p in s.split("|")]
+    parts = [p for p in parts if p]
+
+    if not parts:
+        return ""
+
+    return " | ".join(parts)
 
 
 def extract_ki_text(response) -> str:
@@ -946,27 +1169,28 @@ def extract_ki_text(response) -> str:
     try:
         obj = response.json()
     except Exception:
-        return one_line(raw)
+        return normalize_ai_answer(raw)
 
     if isinstance(obj, str):
-        return one_line(obj)
+        return normalize_ai_answer(obj)
 
     if isinstance(obj, dict):
-        for key in ("response", "answer", "text", "message", "detail"):
+        for key in ("response", "answer", "text", "message", "Message", "detail"):
             value = obj.get(key)
 
             if isinstance(value, str) and value.strip():
-                return one_line(value)
+                return normalize_ai_answer(value)
 
             if isinstance(value, list):
-                return one_line(str(value))
+                # Detail-Listen nur für Fehler lesbar machen.
+                return normalize_ai_answer(" ".join(str(v) for v in value))
 
             if isinstance(value, dict):
-                return one_line(str(value))
+                return normalize_ai_answer(str(value))
 
-        return one_line(raw)
+        return normalize_ai_answer(raw)
 
-    return one_line(raw)
+    return normalize_ai_answer(raw)
 
 
 def request_ki_text(question: str, timeout=(5, 120)) -> str:
@@ -1038,45 +1262,31 @@ def request_ki_image(question: str, bbox) -> str:
 
         payload = {
             "Message": prompt,
-            "Image": data_url
+            "Image": data_url,
+            "message": prompt,
+            "image": data_url,
         }
 
         response = requests.post(
             f"{KI_SERVER_URL}/vision",
             json=payload,
-            headers={
-                "Content-Type": "application/json",
-                "Accept": "application/json"
-            },
             timeout=(5, 180),
         )
 
         if response.status_code == 202:
-            return " ".join(response.text.strip().split()) or "Modell wird installiert"
+            return extract_ki_text(response) or "Modell wird installiert"
 
         if response.status_code >= 400:
-            try:
-                err = response.json()
-            except Exception:
-                err = response.text
+            msg = extract_ki_text(response)
+            log_error(f"KI Vision HTTP {response.status_code}: {msg}")
+            return f"KI HTTP {response.status_code}: {msg[:120]}"
 
-            log_error(f"KI Vision HTTP {response.status_code}: {err}")
-            return f"KI HTTP {response.status_code}: {str(err)[:120]}"
+        text = extract_ki_text(response)
 
-        try:
-            result = response.json()
-            text = (
-                result.get("response")
-                or result.get("answer")
-                or result.get("text")
-                or result.get("message")
-                or result.get("Message")
-                or str(result)
-            )
-        except Exception:
-            text = response.text
+        if not text:
+            return "Keine Antwort"
 
-        return " ".join(str(text).strip().split()) or "Keine Antwort"
+        return text
 
     except requests.exceptions.Timeout:
         log_error("KI Vision Timeout")
@@ -1169,11 +1379,11 @@ def start_mouse_capture_and_ocr_async():
 
         prompt = (
             "Löse die Aufgabe im Screenshot. "
-            "Gib nur die finale Lösung aus. "
-            "Keine Frage wiederholen. "
-            "Keine Erklärung. "
-            "Mehrere Antworten mit | trennen. "
-            "Zuordnungen im Format Teil1 > Teil2 | Teil3 > Teil4."
+            "Gib ausschließlich die finale Lösung aus. "
+            "Wiederhole keine Frage und keinen Aufgabentitel. "
+            "Schreibe keine Erklärung. "
+            "Mehrere Antworten exakt mit | trennen. "
+            "Zuordnungen exakt im Format Teil1 > Teil2 | Teil3 > Teil4."
         )
 
         return request_ki_image(prompt, bbox)
@@ -1259,14 +1469,24 @@ current_letter = "a"
 
 
 def split_variants(text: str) -> list[str]:
-    text = "" if text is None else str(text)
+    text = normalize_ai_answer(text)
+
+    if not text:
+        return [""]
+
+    text = text.replace("｜", "|").replace("¦", "|").replace("‖", "|")
 
     if "|" not in text:
-        t = text.strip()
+        t = normalize_single_variant(text)
         return [t] if t else [""]
 
-    parts = [p.strip() for p in text.split("|") if p.strip()]
-    return parts if parts else [text.strip()]
+    parts = []
+    for p in text.split("|"):
+        p = normalize_single_variant(p)
+        if p:
+            parts.append(p)
+
+    return parts if parts else [""]
 
 
 def load_answer_at(index: int, variant_index: int = 0):
@@ -1292,12 +1512,27 @@ def update_label_with_current_variant():
         label.configure(text="(keine Antwort)", anchor="w", fg=RED)
         return
 
+    total_q = len(current_answers)
+    q_idx = current_answer_index + 1
+
     if not current_variants:
         base_txt = ""
+        total_v = 1
+        v_idx = 1
     else:
         base_txt = current_variants[current_variant_index]
+        total_v = len(current_variants)
+        v_idx = current_variant_index + 1
 
-    label.configure(text=base_txt, anchor="w", fg=TEXT_COLOR)
+    prefix = ""
+
+    if total_q > 1:
+        prefix += f"Q: {q_idx}/{total_q}  "
+
+    if total_v > 1:
+        prefix += f"{v_idx}/{total_v}  "
+
+    label.configure(text=prefix + base_txt, anchor="w", fg=TEXT_COLOR)
 
 
 def show_answer(answers):
@@ -1306,9 +1541,9 @@ def show_answer(answers):
     if answers is None:
         current_answers = []
     elif isinstance(answers, list):
-        current_answers = [str(a).strip() for a in answers if str(a).strip()]
+        current_answers = [normalize_ai_answer(a) for a in answers if normalize_ai_answer(a)]
     else:
-        s = str(answers).strip()
+        s = normalize_ai_answer(answers)
         current_answers = [s] if s else []
 
     if not current_answers:
