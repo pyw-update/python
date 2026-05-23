@@ -161,7 +161,7 @@ def venv_has(module: str) -> bool:
     )
     return r.returncode == 0
 
-packets = ["pillow", "pynput", "numpy"]
+packets = ["requests", "pynput", "numpy"]
 # ────────────────────────────────────────────────
 def install_dependencies() -> None:
     """
