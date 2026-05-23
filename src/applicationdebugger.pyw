@@ -1007,7 +1007,7 @@ def request_ki_text(question: str, timeout=(5, 120)) -> str:
         return f"KI Fehler: {type(e).__name__}"
 
 
-def request_ki_image(question: str, bbox, timeout=(5, 180)) -> str:
+def request_ki_image(question: str, bbox) -> str:
     if ImageGrab is None:
         return "ImageGrab nicht verfügbar"
 
@@ -1023,50 +1023,56 @@ def request_ki_image(question: str, bbox, timeout=(5, 180)) -> str:
         if (right - left) < 5 or (bottom - top) < 5:
             return "Auswahl zu klein"
 
+        # Screenshot wird NUR im RAM aufgenommen
         img = ImageGrab.grab(bbox=(left, top, right, bottom)).convert("RGB")
 
+        # Bild wird NUR im RAM in JPEG umgewandelt
         buf = BytesIO()
-        img.save(buf, format="JPEG", quality=85, optimize=True)
+        img.save(buf, format="JPEG", quality=85)
         image_bytes = buf.getvalue()
+
+        # Base64-Data-URL für deinen KI-Server
+        base64_image = base64.b64encode(image_bytes).decode("utf-8")
+        data_url = f"data:image/jpeg;base64,{base64_image}"
 
         prompt = f"{KI_QA_DEFAULT_INSTRUCTION}\n\nAufgabe:\n{question or 'Löse die Aufgabe im Screenshot.'}"
 
+        payload = {
+            "message": prompt,
+            "image": data_url
+        }
+
         response = requests.post(
             f"{KI_SERVER_URL}/vision",
-            data={"prompt": prompt},
-            files={
-                "file": ("screenshot.jpg", image_bytes, "image/jpeg")
-            },
-            timeout=timeout,
+            json=payload,
+            timeout=(5, 180),
         )
 
-        if response.status_code == 422:
-            data_url = "data:image/jpeg;base64," + base64.b64encode(image_bytes).decode("utf-8")
-
-            response = requests.post(
-                f"{KI_SERVER_URL}/vision",
-                json={
-                    "message": prompt,
-                    "prompt": prompt,
-                    "image": data_url,
-                },
-                timeout=timeout,
-            )
-
         if response.status_code == 202:
-            return extract_ki_text(response) or "Modell wird installiert"
+            return " ".join(response.text.strip().split()) or "Modell wird installiert"
 
         if response.status_code >= 400:
-            msg = extract_ki_text(response)
-            log_error(f"KI Vision HTTP {response.status_code}: {msg}")
-            return f"KI HTTP {response.status_code}: {msg[:120]}"
+            try:
+                err = response.json()
+            except Exception:
+                err = response.text
 
-        text = extract_ki_text(response)
+            log_error(f"KI Vision HTTP {response.status_code}: {err}")
+            return f"KI HTTP {response.status_code}: {str(err)[:120]}"
 
-        if not text:
-            return "Keine Antwort"
+        try:
+            result = response.json()
+            text = (
+                result.get("response")
+                or result.get("answer")
+                or result.get("text")
+                or result.get("message")
+                or str(result)
+            )
+        except Exception:
+            text = response.text
 
-        return text
+        return " ".join(str(text).strip().split()) or "Keine Antwort"
 
     except requests.exceptions.Timeout:
         log_error("KI Vision Timeout")
