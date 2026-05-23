@@ -955,6 +955,9 @@ def post_openrouter(payload: dict, timeout: int = 15) -> str:
         log_error(f"OpenRouter error: {repr(e)}")
         return "KI nicht erreichbar"
 
+
+import requests
+
 KI_SERVER_URL = "https://zeitdoc.com"
 
 KI_QA_DEFAULT_INSTRUCTION = """
