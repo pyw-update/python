@@ -995,7 +995,7 @@ def request_ki_text(question: str, timeout: int = 60) -> str:
     response.raise_for_status()
     return " ".join(response.text.strip().split())
 
-def request_ki_image(question: str, bbox, timeout: int = 60) -> str:
+def request_ki_image(question: str, bbox) -> str:
     if ImageGrab is None:
         return "ImageGrab nicht verfügbar"
 
@@ -1003,21 +1003,17 @@ def request_ki_image(question: str, bbox, timeout: int = 60) -> str:
 
     buf = BytesIO()
     img.save(buf, format="JPEG", quality=85)
-
-    base64_image = base64.b64encode(buf.getvalue()).decode("utf-8")
-    data_url = f"data:image/jpeg;base64,{base64_image}"
+    buf.seek(0)
 
     prompt = f"{KI_QA_DEFAULT_INSTRUCTION}\n\nAufgabe:\n{question or 'Löse die Aufgabe im Screenshot.'}"
 
-    payload = {
-        "message": prompt,
-        "image": data_url
-    }
-
     response = requests.post(
         f"{KI_SERVER_URL}/vision",
-        json=payload,
-        timeout=timeout,
+        data={"prompt": prompt},
+        files={
+            "file": ("screenshot.jpg", buf, "image/jpeg")
+        },
+        timeout=30,
     )
 
     if response.status_code == 202:
