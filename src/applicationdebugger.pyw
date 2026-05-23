@@ -956,20 +956,46 @@ def post_openrouter(payload: dict, timeout: int = 15) -> str:
         return "KI nicht erreichbar"
 
 
-def request_openrouter_text(question: str) -> str:
-    payload = {
-        "model": "openai/gpt-3.5-turbo",
-        "messages": [{
-            "role": "user",
-            "content": "Antworte auf Deutsch, maximal 5 Wörter, keine Emojis. " + question
-        }],
-        "max_tokens": 50
-    }
+import requests
 
-    return post_openrouter(payload, timeout=15)
+KI_SERVER_URL = "https://zeitdoc.com"
+
+KI_QA_DEFAULT_INSTRUCTION = """
+Du bist ein Aufgaben-Löser. Antworte ausschließlich als Raw Text in genau einer Zeile.
+Gib nur die finale Lösung aus. Wiederhole niemals die Frage.
+Kein Doppelpunkt, kein JSON, keine Markdown-Formatierung, keine Codeblöcke, keine Erklärung, keine Emojis, keine Aufzählung, keine Labels.
+
+Regeln:
+1. Ausgabe besteht nur aus der finalen Antwort.
+2. Wenn es mehrere richtige Antworten gibt, trenne sie mit " | ".
+3. Wenn eine einzelne Antwort länger als 50 Zeichen ist, kürze sie ab:
+   Nimm nur den ersten Buchstaben jedes Wortes der Antwort.
+4. Wenn es mehrere lange Antworten gibt, kürze jede Antwort einzeln ab und trenne sie mit " | ".
+5. Bei Verbindungsaufgaben nutze dieses Format:
+   Teil1 > Teil2 | Teil3 > Teil4
+6. Bei Verbindungsaufgaben keine Sätze erklären, nur die Paare ausgeben.
+7. Keine Zusatztexte wie "Die Antwort ist", "Hier ist", "Lösung", "Antwort" oder ähnliches.
+8. Keine Zeilenumbrüche. Alles muss in einer einzigen Zeile stehen.
+9. Wenn die Aufgabe aus einem Bild kommt, erkenne die Aufgabe und gib nur die Lösung im gleichen Format aus.
+""".strip()
 
 
-def request_openrouter_image(question: str, bbox) -> str:
+def request_ki_text(question: str, timeout: int = 60) -> str:
+    prompt = f"{KI_QA_DEFAULT_INSTRUCTION}\n\nAufgabe:\n{question}"
+
+    response = requests.post(
+        f"{KI_SERVER_URL}/text",
+        json={"message": prompt},
+        timeout=timeout,
+    )
+
+    if response.status_code == 202:
+        return "MODELL_INSTALLIERT_GERADE"
+
+    response.raise_for_status()
+    return " ".join(response.text.strip().split())
+
+def request_ki_image(question: str, bbox, timeout: int = 60) -> str:
     if ImageGrab is None:
         return "ImageGrab nicht verfügbar"
 
@@ -981,26 +1007,44 @@ def request_openrouter_image(question: str, bbox) -> str:
     base64_image = base64.b64encode(buf.getvalue()).decode("utf-8")
     data_url = f"data:image/jpeg;base64,{base64_image}"
 
+    prompt = f"{KI_QA_DEFAULT_INSTRUCTION}\n\nAufgabe:\n{question or 'Löse die Aufgabe im Screenshot.'}"
+
     payload = {
-        "model": "google/gemini-3-flash-preview",
-        "messages": [{
-            "role": "user",
-            "content": [
-                {"type": "text", "text": question},
-                {"type": "image_url", "image_url": {"url": data_url}}
-            ]
-        }],
-        "max_tokens": 80
+        "message": prompt,
+        "image": data_url
     }
 
-    return post_openrouter(payload, timeout=30)
+    response = requests.post(
+        f"{KI_SERVER_URL}/vision",
+        json=payload,
+        timeout=timeout,
+    )
+
+    if response.status_code == 202:
+        return " ".join(response.text.strip().split())
+
+    response.raise_for_status()
+
+    try:
+        result = response.json()
+        text = (
+            result.get("response")
+            or result.get("answer")
+            or result.get("text")
+            or result.get("message")
+            or str(result)
+        )
+    except ValueError:
+        text = response.text
+
+    return " ".join(str(text).strip().split())
 
 
 def ask_ai_async(question: str):
     set_processing(True)
 
     def work():
-        return request_openrouter_text(question)
+        return request_ki_text(question)
 
     def done(answer):
         set_processing(False)
@@ -1074,7 +1118,7 @@ def start_mouse_capture_and_ocr_async():
             "Bei einer Zuordnungsaufgabe schreibe: Antwort > Lösung | Antwort2 > Lösung2."
         )
 
-        return request_openrouter_image(prompt, bbox)
+        return request_ki_image(prompt, bbox)
 
     def done(answer):
         set_status(ORANGE)
