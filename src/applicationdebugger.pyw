@@ -17,6 +17,7 @@ except Exception as e:
 
 try:
     from pynput import mouse
+    import requests
 except Exception as e:
     mouse = None
     print("pynput/mouse nicht verfügbar:", e)
@@ -769,7 +770,7 @@ OFFSET_Y = -5
 BOX_LENGTH = 5
 BOX_HEIGHT = 2
 
-OPENROUTER_API_KEY = cfg.get("API_KEY", "").strip()
+KI_SERVER_URL = cfg.get("KI_SERVER_URL", "https://zeitdoc.com").strip().rstrip("/")
 
 desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
 log_dir = desktop_path if os.path.isdir(desktop_path) else os.getcwd()
@@ -914,51 +915,8 @@ def run_worker(work_fn, done_fn=None, fallback_error="Fehler"):
 
 
 # ------------------------------------------------------------
-# OPENROUTER
+# KI SERVER
 # ------------------------------------------------------------
-
-def post_openrouter(payload: dict, timeout: int = 15) -> str:
-    if not OPENROUTER_API_KEY or OPENROUTER_API_KEY == "test123":
-        return "API_KEY fehlt"
-
-    data = json.dumps(payload).encode("utf-8")
-
-    req = urllib.request.Request(
-        "https://openrouter.ai/api/v1/chat/completions",
-        data=data,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-            "HTTP-Referer": "https://localhost",
-            "X-Title": "StudyOverlay"
-        },
-        method="POST"
-    )
-
-    context = ssl.create_default_context()
-
-    try:
-        with urllib.request.urlopen(req, context=context, timeout=timeout) as resp:
-            body = resp.read().decode("utf-8", errors="replace")
-            obj = json.loads(body)
-            return obj["choices"][0]["message"]["content"].strip()
-
-    except urllib.error.HTTPError as e:
-        try:
-            err = e.read().decode("utf-8", errors="replace")
-            log_error(f"HTTPError {e.code}: {err}")
-            return f"HTTP {e.code}: {err[:160]}"
-        except Exception:
-            return f"HTTP {e.code}"
-
-    except Exception as e:
-        log_error(f"OpenRouter error: {repr(e)}")
-        return "KI nicht erreichbar"
-
-
-import requests
-
-KI_SERVER_URL = "https://zeitdoc.com"
 
 KI_QA_DEFAULT_INSTRUCTION = """
 Du bist ein Aufgaben-Löser. Antworte ausschließlich als Raw Text in genau einer Zeile.
@@ -968,11 +926,9 @@ Kein Doppelpunkt, kein JSON, keine Markdown-Formatierung, keine Codeblöcke, kei
 Regeln:
 1. Ausgabe besteht nur aus der finalen Antwort.
 2. Wenn es mehrere richtige Antworten gibt, trenne sie mit " | ".
-3. Wenn eine einzelne Antwort länger als 50 Zeichen ist, kürze sie ab:
-   Nimm nur den ersten Buchstaben jedes Wortes der Antwort.
+3. Wenn eine einzelne Antwort länger als 50 Zeichen ist, kürze sie ab: Nimm nur den ersten Buchstaben jedes Wortes der Antwort.
 4. Wenn es mehrere lange Antworten gibt, kürze jede Antwort einzeln ab und trenne sie mit " | ".
-5. Bei Verbindungsaufgaben nutze dieses Format:
-   Teil1 > Teil2 | Teil3 > Teil4
+5. Bei Verbindungsaufgaben nutze dieses Format: Teil1 > Teil2 | Teil3 > Teil4
 6. Bei Verbindungsaufgaben keine Sätze erklären, nur die Paare ausgeben.
 7. Keine Zusatztexte wie "Die Antwort ist", "Hier ist", "Lösung", "Antwort" oder ähnliches.
 8. Keine Zeilenumbrüche. Alles muss in einer einzigen Zeile stehen.
@@ -980,60 +936,149 @@ Regeln:
 """.strip()
 
 
-def request_ki_text(question: str, timeout: int = 60) -> str:
+def one_line(text) -> str:
+    return " ".join(str(text or "").strip().split())
+
+
+def extract_ki_text(response) -> str:
+    raw = response.text or ""
+
+    try:
+        obj = response.json()
+    except Exception:
+        return one_line(raw)
+
+    if isinstance(obj, str):
+        return one_line(obj)
+
+    if isinstance(obj, dict):
+        for key in ("response", "answer", "text", "message", "detail"):
+            value = obj.get(key)
+
+            if isinstance(value, str) and value.strip():
+                return one_line(value)
+
+            if isinstance(value, list):
+                return one_line(str(value))
+
+            if isinstance(value, dict):
+                return one_line(str(value))
+
+        return one_line(raw)
+
+    return one_line(raw)
+
+
+def request_ki_text(question: str, timeout=(5, 120)) -> str:
     prompt = f"{KI_QA_DEFAULT_INSTRUCTION}\n\nAufgabe:\n{question}"
 
-    response = requests.post(
-        f"{KI_SERVER_URL}/text",
-        json={"message": prompt},
-        timeout=timeout,
-    )
+    try:
+        response = requests.post(
+            f"{KI_SERVER_URL}/text",
+            json={"message": prompt},
+            timeout=timeout,
+        )
 
-    if response.status_code == 202:
-        return "MODELL_INSTALLIERT_GERADE"
+        if response.status_code == 202:
+            return extract_ki_text(response) or "Modell wird installiert"
 
-    response.raise_for_status()
-    return " ".join(response.text.strip().split())
+        if response.status_code >= 400:
+            msg = extract_ki_text(response)
+            log_error(f"KI Text HTTP {response.status_code}: {msg}")
+            return f"KI HTTP {response.status_code}: {msg[:120]}"
 
-def request_ki_image(question: str, bbox) -> str:
+        text = extract_ki_text(response)
+
+        if not text:
+            return "Keine Antwort"
+
+        return text
+
+    except requests.exceptions.Timeout:
+        log_error("KI Text Timeout")
+        return "KI Timeout"
+
+    except requests.exceptions.RequestException as e:
+        log_error(f"KI Text RequestException: {repr(e)}")
+        return "KI nicht erreichbar"
+
+    except Exception as e:
+        log_error(f"KI Text Fehler: {repr(e)}")
+        return f"KI Fehler: {type(e).__name__}"
+
+
+def request_ki_image(question: str, bbox, timeout=(5, 180)) -> str:
     if ImageGrab is None:
         return "ImageGrab nicht verfügbar"
 
-    img = ImageGrab.grab(bbox=bbox)
-
-    buf = BytesIO()
-    img.save(buf, format="JPEG", quality=85)
-    buf.seek(0)
-
-    prompt = f"{KI_QA_DEFAULT_INSTRUCTION}\n\nAufgabe:\n{question or 'Löse die Aufgabe im Screenshot.'}"
-
-    response = requests.post(
-        f"{KI_SERVER_URL}/vision",
-        data={"prompt": prompt},
-        files={
-            "file": ("screenshot.jpg", buf, "image/jpeg")
-        },
-        timeout=30,
-    )
-
-    if response.status_code == 202:
-        return " ".join(response.text.strip().split())
-
-    response.raise_for_status()
-
     try:
-        result = response.json()
-        text = (
-            result.get("response")
-            or result.get("answer")
-            or result.get("text")
-            or result.get("message")
-            or str(result)
-        )
-    except ValueError:
-        text = response.text
+        if not bbox or len(bbox) != 4:
+            return "Screenshot-Auswahl ungültig"
 
-    return " ".join(str(text).strip().split())
+        left, top, right, bottom = [int(v) for v in bbox]
+
+        if right <= left or bottom <= top:
+            return "Screenshot-Auswahl ungültig"
+
+        if (right - left) < 5 or (bottom - top) < 5:
+            return "Auswahl zu klein"
+
+        img = ImageGrab.grab(bbox=(left, top, right, bottom)).convert("RGB")
+
+        buf = BytesIO()
+        img.save(buf, format="JPEG", quality=85, optimize=True)
+        image_bytes = buf.getvalue()
+
+        prompt = f"{KI_QA_DEFAULT_INSTRUCTION}\n\nAufgabe:\n{question or 'Löse die Aufgabe im Screenshot.'}"
+
+        response = requests.post(
+            f"{KI_SERVER_URL}/vision",
+            data={"prompt": prompt},
+            files={
+                "file": ("screenshot.jpg", image_bytes, "image/jpeg")
+            },
+            timeout=timeout,
+        )
+
+        if response.status_code == 422:
+            data_url = "data:image/jpeg;base64," + base64.b64encode(image_bytes).decode("utf-8")
+
+            response = requests.post(
+                f"{KI_SERVER_URL}/vision",
+                json={
+                    "message": prompt,
+                    "prompt": prompt,
+                    "image": data_url,
+                },
+                timeout=timeout,
+            )
+
+        if response.status_code == 202:
+            return extract_ki_text(response) or "Modell wird installiert"
+
+        if response.status_code >= 400:
+            msg = extract_ki_text(response)
+            log_error(f"KI Vision HTTP {response.status_code}: {msg}")
+            return f"KI HTTP {response.status_code}: {msg[:120]}"
+
+        text = extract_ki_text(response)
+
+        if not text:
+            return "Keine Antwort"
+
+        return text
+
+    except requests.exceptions.Timeout:
+        log_error("KI Vision Timeout")
+        return "KI Timeout"
+
+    except requests.exceptions.RequestException as e:
+        log_error(f"KI Vision RequestException: {repr(e)}")
+        return "KI nicht erreichbar"
+
+    except Exception as e:
+        log_error(f"KI Vision Fehler: {repr(e)}")
+        return f"KI Fehler: {type(e).__name__}"
 
 
 def ask_ai_async(question: str):
@@ -1047,11 +1092,11 @@ def ask_ai_async(question: str):
         set_answer_bindings()
         show_answer(answer)
 
-    run_worker(work, done, fallback_error="KI nicht erreichbar")
+    run_worker(work, done, fallback_error="KI Fehler")
 
 
 # ------------------------------------------------------------
-# OCR / SCREEN CAPTURE
+# SCREEN CAPTURE / KI IMAGE
 # ------------------------------------------------------------
 
 def wait_for_two_clicks():
@@ -1072,8 +1117,12 @@ def wait_for_two_clicks():
 
         return None
 
-    with mouse.Listener(on_click=on_click) as listener:
-        listener.join()
+    try:
+        with mouse.Listener(on_click=on_click) as listener:
+            listener.join()
+    except Exception as e:
+        log_error(f"Mouse Listener Fehler: {repr(e)}")
+        return "Mausauswahl Fehler"
 
     if len(points) < 2:
         return "Auswahl abgebrochen"
@@ -1109,9 +1158,12 @@ def start_mouse_capture_and_ocr_async():
             return bbox
 
         prompt = (
-            "Beantworte mir die Aufgabe. In maximal 10 Wörtern. "
-            "Wenn die Lösung im Bild schon steht, gib nur die Lösung aus. "
-            "Bei einer Zuordnungsaufgabe schreibe: Antwort > Lösung | Antwort2 > Lösung2."
+            "Löse die Aufgabe im Screenshot. "
+            "Gib nur die finale Lösung aus. "
+            "Keine Frage wiederholen. "
+            "Keine Erklärung. "
+            "Mehrere Antworten mit | trennen. "
+            "Zuordnungen im Format Teil1 > Teil2 | Teil3 > Teil4."
         )
 
         return request_ki_image(prompt, bbox)
@@ -1121,7 +1173,7 @@ def start_mouse_capture_and_ocr_async():
         set_answer_bindings()
         show_answer(answer)
 
-    run_worker(work, done, fallback_error="OCR/KI Fehler")
+    run_worker(work, done, fallback_error="KI Fehler")
 
 
 # ------------------------------------------------------------
@@ -1208,7 +1260,6 @@ def split_variants(text: str) -> list[str]:
 
 
 def load_answer_at(index: int, variant_index: int = 0):
-    """Lädt eine Antwort und die dazugehörigen |-Varianten."""
     global current_answer_index, current_variants, current_variant_index
 
     if not current_answers:
@@ -1231,27 +1282,12 @@ def update_label_with_current_variant():
         label.configure(text="(keine Antwort)", anchor="w", fg=RED)
         return
 
-    total_q = len(current_answers)
-    q_idx = current_answer_index + 1
-
     if not current_variants:
         base_txt = ""
-        total_v = 1
-        v_idx = 1
     else:
         base_txt = current_variants[current_variant_index]
-        total_v = len(current_variants)
-        v_idx = current_variant_index + 1
 
-    prefix = ""
-
-    if total_q > 1:
-        prefix += f"Q: {q_idx}/{total_q}  "
-
-    if total_v > 1:
-        prefix += f"[{v_idx}/{total_v}] "
-
-    label.configure(text=prefix + base_txt, anchor="w", fg=TEXT_COLOR)
+    label.configure(text=base_txt, anchor="w", fg=TEXT_COLOR)
 
 
 def show_answer(answers):
@@ -1311,10 +1347,6 @@ def prev_answer(event=None):
 
 
 def next_variant(event=None):
-    """
-    Geht zur nächsten |-Variante.
-    Wenn die letzte Variante erreicht ist, springt es automatisch zur nächsten Antwort.
-    """
     global current_variant_index
 
     if not current_answers:
@@ -1331,10 +1363,6 @@ def next_variant(event=None):
 
 
 def prev_variant(event=None):
-    """
-    Geht zur vorherigen |-Variante.
-    Wenn die erste Variante erreicht ist, springt es automatisch zur vorherigen Antwort.
-    """
     global current_variant_index
 
     if not current_answers:
@@ -1353,8 +1381,6 @@ def prev_variant(event=None):
 
 
 def scroll_answers(event):
-    # Windows: event.delta > 0 nach oben, < 0 nach unten.
-    # Button-4/Button-5 sind für andere Systeme unschädlich und machen die Funktion robuster.
     num = getattr(event, "num", None)
     delta = getattr(event, "delta", 0)
 
@@ -1394,22 +1420,16 @@ def clear_mode_bindings():
 def set_answer_bindings():
     clear_mode_bindings()
 
-    # Mausrad: durch Varianten laufen, danach automatisch nächste/vorherige Antwort.
     root.bind_all("<MouseWheel>", scroll_answers)
     root.bind_all("<Button-4>", scroll_answers)
     root.bind_all("<Button-5>", scroll_answers)
 
-    # Windows:
-    # Button-2 = Mausrad-Klick
-    # Button-3 = Rechtsklick
     root.bind_all("<Button-2>", next_answer)
     root.bind_all("<Button-3>", next_answer)
 
-    # Enter: nächste Antwort
     root.bind_all("<Return>", next_answer)
     root.bind_all("<KP_Enter>", next_answer)
 
-    # Pfeile: Varianten + automatischer Antwortwechsel
     root.bind_all("<Right>", next_variant)
     root.bind_all("<Left>", prev_variant)
 
@@ -1425,10 +1445,7 @@ def set_search_bindings():
     root.bind_all("<Button-5>", on_scroll)
     root.bind_all("<Button-3>", lambda event: handle_search_query(buffer))
 
-    # Normales Enter
     root.bind_all("<Return>", lambda event: handle_search_query(buffer))
-
-    # Numpad Enter
     root.bind_all("<KP_Enter>", lambda event: handle_search_query(buffer))
 
     root.bind_all("<Shift_R>", close_app)
@@ -1454,14 +1471,12 @@ def find_answer(query):
     if not q:
         return answers
 
-    # Normale Textsuche
     if " " in q:
         for key in QA:
             if q in normalize(key):
                 answers.append(QA[key])
         return answers
 
-    # Initialen-Suche
     initials_q = q
 
     if len(initials_q) >= 2 and initials_q.isalpha():
@@ -1634,37 +1649,31 @@ def handle_key(event):
     ks = getattr(event, "keysym", "")
     ch = getattr(event, "char", "")
 
-    # SPACE
     if ks in ("space", "Space") or ch == " ":
         buffer += " "
         update_listening_overlay()
         return "break"
 
-    # ➡️ nächster Buchstabe
     if ks == "Right":
         current_letter = get_next_letter(current_letter)
         update_listening_overlay()
         return "break"
 
-    # ⬅️ vorheriger Buchstabe
     if ks == "Left":
         current_letter = get_prev_letter(current_letter)
         update_listening_overlay()
         return "break"
 
-    # ⬆️ aktuellen Buchstaben übernehmen
     if ks == "Up":
         buffer += current_letter
         current_letter = "a"
         update_listening_overlay()
         return "break"
 
-    # ⬇️ Bereich auswählen + OCR/KI
     if ks == "Down":
         start_mouse_capture_and_ocr_async()
         return "break"
 
-    # Backspace
     if ks == "BackSpace":
         if buffer:
             buffer = buffer[:-1]
@@ -1673,12 +1682,10 @@ def handle_key(event):
         update_listening_overlay()
         return "break"
 
-    # ; = Suche abschicken
     if ks == "semicolon" or ch == ";":
         handle_search_query(buffer)
         return "break"
 
-    # Direkt getippte Zeichen
     if ch and ch.isprintable() and len(ch) == 1:
         buffer += ch.lower()
         current_letter = "a"
