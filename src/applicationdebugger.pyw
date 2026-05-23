@@ -1023,28 +1023,31 @@ def request_ki_image(question: str, bbox) -> str:
         if (right - left) < 5 or (bottom - top) < 5:
             return "Auswahl zu klein"
 
-        # Screenshot wird NUR im RAM aufgenommen
+        # Screenshot NUR im RAM
         img = ImageGrab.grab(bbox=(left, top, right, bottom)).convert("RGB")
 
-        # Bild wird NUR im RAM in JPEG umgewandelt
+        # JPEG NUR im RAM
         buf = BytesIO()
         img.save(buf, format="JPEG", quality=85)
         image_bytes = buf.getvalue()
 
-        # Base64-Data-URL für deinen KI-Server
         base64_image = base64.b64encode(image_bytes).decode("utf-8")
         data_url = f"data:image/jpeg;base64,{base64_image}"
 
         prompt = f"{KI_QA_DEFAULT_INSTRUCTION}\n\nAufgabe:\n{question or 'Löse die Aufgabe im Screenshot.'}"
 
         payload = {
-            "message": prompt,
-            "image": data_url
+            "Message": prompt,
+            "Image": data_url
         }
 
         response = requests.post(
             f"{KI_SERVER_URL}/vision",
             json=payload,
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            },
             timeout=(5, 180),
         )
 
@@ -1067,6 +1070,7 @@ def request_ki_image(question: str, bbox) -> str:
                 or result.get("answer")
                 or result.get("text")
                 or result.get("message")
+                or result.get("Message")
                 or str(result)
             )
         except Exception:
