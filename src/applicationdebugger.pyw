@@ -1,13 +1,10 @@
 import tkinter as tk
 import os
 import time
-import json
-import ssl
 import base64
-import urllib.request
-import urllib.error
 import threading
 from io import BytesIO
+import re
 
 try:
     from PIL import ImageGrab
@@ -1389,9 +1386,22 @@ def start_mouse_capture_and_ocr_async():
         return request_ki_image(prompt, bbox)
 
     def done(answer):
-        set_status(ORANGE)
-        set_answer_bindings()
-        show_answer(answer)
+        try:
+            set_status(ORANGE)
+            set_answer_bindings()
+
+            if answer is None or not str(answer).strip():
+                show_answer("Keine Antwort vom Server")
+            else:
+                show_answer(answer)
+
+        except Exception as e:
+            log_error(f"KI Bild done Fehler: {repr(e)}")
+            try:
+                label.configure(text=f"Done Fehler: {type(e).__name__}", anchor="w", fg=RED)
+                force_show_overlay()
+            except Exception:
+                pass
 
     run_worker(work, done, fallback_error="KI Fehler")
 
@@ -1445,13 +1455,16 @@ def recalc_overlay_geometry():
     w = label.winfo_reqwidth()
     h = label.winfo_reqheight()
 
-    bg_w = w if BACKGROUND_WIDTH is None else BACKGROUND_WIDTH
-    bg_h = h if BACKGROUND_HEIGHT is None else BACKGROUND_HEIGHT
+    # Sicherheits-Minimum, damit das Overlay nie unsichtbar/0px wird
+    w = max(w, 40)
+    h = max(h, FONT_SIZE + 8)
+
+    bg_w = w if BACKGROUND_WIDTH is None else max(BACKGROUND_WIDTH, 40)
+    bg_h = h if BACKGROUND_HEIGHT is None else max(BACKGROUND_HEIGHT, FONT_SIZE + 8)
 
     x, y = compute_position(sw, sh, bg_w, bg_h)
 
     overlay.geometry(f"{bg_w}x{bg_h}+{x}+{y}")
-
 
 # ------------------------------------------------------------
 # ANSWER STATE
@@ -1468,25 +1481,146 @@ buffer = ""
 current_letter = "a"
 
 
-def split_variants(text: str) -> list[str]:
-    text = normalize_ai_answer(text)
+def safe_one_line(text) -> str:
+    return " ".join(str(text or "").strip().split())
 
-    if not text:
-        return [""]
 
-    text = text.replace("｜", "|").replace("¦", "|").replace("‖", "|")
+def remove_ai_prefix(text: str) -> str:
+    s = safe_one_line(text)
 
-    if "|" not in text:
-        t = normalize_single_variant(text)
-        return [t] if t else [""]
+    if not s:
+        return ""
+
+    # Häufige KI-Vorsätze entfernen
+    prefixes = [
+        "antwort:",
+        "antwort :",
+        "lösung:",
+        "lösung :",
+        "loesung:",
+        "loesung :",
+        "die antwort ist",
+        "die lösung ist",
+        "die loesung ist",
+        "aufgabe:",
+        "aufgabe :",
+        "frage:",
+        "frage :",
+        "titel:",
+        "titel :",
+        "answer:",
+        "answer :",
+        "solution:",
+        "solution :",
+        "final answer:",
+        "final answer :",
+    ]
+
+    changed = True
+    while changed:
+        changed = False
+        low = s.lower().strip()
+
+        for p in prefixes:
+            if low.startswith(p):
+                s = s[len(p):].strip()
+                changed = True
+                break
+
+    # Falls KI "Frage: Antwort" schreibt, links abschneiden
+    if ":" in s:
+        left, right = s.split(":", 1)
+        left_low = left.lower().strip()
+        right = right.strip()
+
+        looks_like_question = (
+            "?" in left
+            or len(left.strip()) > 18
+            or any(x in left_low for x in [
+                "frage",
+                "aufgabe",
+                "question",
+                "task",
+                "what ",
+                "which ",
+                "how ",
+                "why ",
+                "was ",
+                "wie ",
+                "welche ",
+                "ordne ",
+                "verbinde ",
+            ])
+        )
+
+        if looks_like_question and right:
+            s = right
+
+    # Falls KI "Die Aufgabe heißt X | Lösung1 | Lösung2" schreibt
+    if "|" in s:
+        parts = [p.strip() for p in s.split("|") if p.strip()]
+        if len(parts) > 1:
+            first_low = parts[0].lower()
+            if any(x in first_low for x in ["aufgabe", "frage", "heißt", "heisst", "title", "task", "question"]):
+                s = " | ".join(parts[1:])
+
+    return safe_one_line(s)
+
+
+def normalize_answer_text(text: str) -> str:
+    s = "" if text is None else str(text)
+
+    # Server-/JSON-Reste abfangen, falls dict als String angezeigt wird
+    for key in ("response", "answer", "text", "message", "Message"):
+        m = re.search(rf"""['"]{key}['"]\s*:\s*['"]([^'"]+)['"]""", s)
+        if m:
+            s = m.group(1)
+            break
+
+    s = s.replace("\r\n", "\n").replace("\r", "\n")
+    s = s.replace("｜", "|").replace("¦", "|").replace("‖", "|")
+    s = s.replace("→", ">").replace("⇒", ">").replace("->", ">")
+
+    # Zeilenlisten als Varianten behandeln
+    s = re.sub(r"\n+", " | ", s)
+
+    # Markdown entfernen
+    s = s.replace("**", "").replace("__", "")
+
+    s = remove_ai_prefix(s)
+
+    if not s:
+        return ""
 
     parts = []
-    for p in text.split("|"):
-        p = normalize_single_variant(p)
+    for p in s.split("|"):
+        p = remove_ai_prefix(p)
+        p = p.strip()
+        p = p.lstrip("-").lstrip("*").lstrip("•").strip()
+        p = re.sub(r"^\s*\d+\s*[\.\)]\s*", "", p).strip()
+
         if p:
             parts.append(p)
 
-    return parts if parts else [""]
+    return " | ".join(parts)
+
+
+def split_variants(text: str) -> list[str]:
+    text = normalize_answer_text(text)
+
+    if not text:
+        return ["Keine Antwort"]
+
+    if "|" not in text:
+        return [text.strip()]
+
+    parts = []
+    for p in text.split("|"):
+        p = normalize_answer_text(p)
+        if p:
+            parts.append(p)
+
+    return parts if parts else ["Keine Antwort"]
 
 
 def load_answer_at(index: int, variant_index: int = 0):
@@ -1502,7 +1636,7 @@ def load_answer_at(index: int, variant_index: int = 0):
     current_variants = split_variants(current_answers[current_answer_index])
 
     if not current_variants:
-        current_variants = [""]
+        current_variants = ["Keine Antwort"]
 
     current_variant_index = max(0, min(variant_index, len(current_variants) - 1))
 
@@ -1516,7 +1650,7 @@ def update_label_with_current_variant():
     q_idx = current_answer_index + 1
 
     if not current_variants:
-        base_txt = ""
+        base_txt = "Keine Antwort"
         total_v = 1
         v_idx = 1
     else:
@@ -1529,46 +1663,63 @@ def update_label_with_current_variant():
     if total_q > 1:
         prefix += f"Q: {q_idx}/{total_q}  "
 
+    # Genau das, was du wolltest: 1/3, 2/3, ...
     if total_v > 1:
         prefix += f"{v_idx}/{total_v}  "
 
     label.configure(text=prefix + base_txt, anchor="w", fg=TEXT_COLOR)
 
 
+def force_show_overlay():
+    try:
+        recalc_overlay_geometry()
+        overlay.deiconify()
+        overlay.update_idletasks()
+        overlay.attributes("-topmost", False)
+        overlay.attributes("-topmost", True)
+        overlay.lift()
+        overlay.focus_force()
+    except Exception as e:
+        log_error(f"force_show_overlay Fehler: {repr(e)}")
+
+
 def show_answer(answers):
     global current_answers
 
-    if answers is None:
-        current_answers = []
-    elif isinstance(answers, list):
-        current_answers = [normalize_ai_answer(a) for a in answers if normalize_ai_answer(a)]
-    else:
-        s = normalize_ai_answer(answers)
-        current_answers = [s] if s else []
+    try:
+        log_error(f"RAW ANSWER: {repr(answers)}")
 
-    if not current_answers:
-        label.configure(text="(keine Antwort)", anchor="w", fg=RED)
-        recalc_overlay_geometry()
-        overlay.deiconify()
-        overlay.lift()
-        overlay.focus_force()
-        return
+        if answers is None:
+            current_answers = []
+        elif isinstance(answers, list):
+            current_answers = []
+            for a in answers:
+                cleaned = normalize_answer_text(a)
+                if cleaned:
+                    current_answers.append(cleaned)
+        else:
+            cleaned = normalize_answer_text(answers)
+            current_answers = [cleaned] if cleaned else []
 
-    load_answer_at(0, 0)
-    update_label_with_current_variant()
-    recalc_overlay_geometry()
+        if not current_answers:
+            current_answers = ["Keine Antwort vom Server"]
 
-    overlay.deiconify()
-    overlay.lift()
-    overlay.focus_force()
+        load_answer_at(0, 0)
+        update_label_with_current_variant()
+        force_show_overlay()
+
+    except Exception as e:
+        log_error(f"show_answer Fehler: {repr(e)}")
+        label.configure(text=f"Anzeige Fehler: {type(e).__name__}", anchor="w", fg=RED)
+        force_show_overlay()
 
 
 def refresh_answer_view():
-    update_label_with_current_variant()
-    recalc_overlay_geometry()
-    overlay.deiconify()
-    overlay.lift()
-    overlay.focus_force()
+    try:
+        update_label_with_current_variant()
+        force_show_overlay()
+    except Exception as e:
+        log_error(f"refresh_answer_view Fehler: {repr(e)}")
 
 
 def next_answer(event=None):
@@ -1633,8 +1784,6 @@ def scroll_answers(event):
         return next_variant()
 
     return prev_variant()
-
-
 # ------------------------------------------------------------
 # BINDINGS
 # ------------------------------------------------------------
