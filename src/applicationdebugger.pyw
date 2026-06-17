@@ -14,55 +14,55 @@ except Exception as e:
 
 try:
     from pynput import mouse
-    import requests
 except Exception as e:
     mouse = None
     print("pynput/mouse nicht verfügbar:", e)
+
+try:
+    import requests
+except Exception as e:
+    requests = None
+    print("requests nicht verfügbar:", e)
 
 
 # ------------------------------------------------------------
 # ENV
 # ------------------------------------------------------------
 
-def ensure_default_env(env_file=".env", defaults=None):
-    if defaults is None:
-        defaults = {
-            "API_KEY": "test123",
-            "FONT_SIZE": "7",
-            "TEXT_POSITION": "bottom_center",
-            "TEXT_COLOR": "#d3d3d3",
-            "ANSWER_BG_COLOR": "#eeeeee"
-        }
+def ensure_default_env(env_file=".env"):
+    if os.path.exists(env_file):
+        return
 
-    if not os.path.exists(env_file):
-        with open(env_file, "w", encoding="utf-8") as f:
-            f.write("# Auto-generated default .env\n")
-            f.write("# Passe Werte an deine Umgebung an.\n")
-            f.write("# Text position: top_left, top_center, top_right, center_left, center, center_right, bottom_left, bottom_center, bottom_right\n\n")
+    defaults = {
+        "GEMINI_API_KEY": "HIER_DEIN_GEMINI_API_KEY_EINFUEGEN",
+        "GEMINI_MODEL": "gemini-3.1-flash-lite",
+        "GEMINI_USE_GOOGLE_SEARCH": "1",
+        "FONT_SIZE": "7",
+        "TEXT_POSITION": "bottom_center",
+        "TEXT_COLOR": "#d3d3d3",
+        "ANSWER_BG_COLOR": "#eeeeee",
+    }
 
-            for k, v in defaults.items():
-                vv = str(v)
-                if (" " in vv) or ("#" in vv):
-                    vv = '"' + vv.replace('"', '\\"') + '"'
-                f.write(f"{k}={vv}\n")
+    with open(env_file, "w", encoding="utf-8") as f:
+        f.write("# Auto-generated default .env\n")
+        f.write("# Trage hier deinen Gemini API Key ein.\n")
+        f.write("# TEXT_POSITION: top_left, top_center, top_right, center_left, center, center_right, bottom_left, bottom_center, bottom_right\n\n")
+        for k, v in defaults.items():
+            f.write(f"{k}={v}\n")
 
 
 def load_env(env_file=".env", overwrite=False):
     data = {}
-
     if not os.path.exists(env_file):
         return data
 
     with open(env_file, "r", encoding="utf-8") as f:
         for raw_line in f:
             line = raw_line.strip()
-
             if not line or line.startswith("#"):
                 continue
-
             if line.startswith("export "):
                 line = line[7:].strip()
-
             if "=" not in line:
                 continue
 
@@ -74,20 +74,13 @@ def load_env(env_file=".env", overwrite=False):
                 value = value.split("#", 1)[0].strip()
 
             if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
-                value = value[1:-1]
-                value = value.replace('\\"', '"')
+                value = value[1:-1].replace('\\"', '"')
 
             data[key] = value
-
             if overwrite or key not in os.environ:
                 os.environ[key] = value
 
     return data
-
-
-def init_env(env_file=".env", defaults=None, overwrite=False):
-    ensure_default_env(env_file, defaults=defaults)
-    return load_env(env_file, overwrite=overwrite)
 
 
 def to_int(value, default):
@@ -97,23 +90,19 @@ def to_int(value, default):
         return default
 
 
-cfg = init_env(".env")
+ensure_default_env(".env")
+cfg = load_env(".env")
 
 
 # ------------------------------------------------------------
 # QA
 # ------------------------------------------------------------
-# Hier deine Fragen/Lösungen einfügen.
+# Hier kannst du feste Fragen/Lösungen einfügen.
 # Beispiel:
-#
 # QA = {
 #     "Was bedeutet Vertraulichkeit?": "Nur Berechtigte dürfen Daten lesen.",
 #     "Nenne die drei Schutzziele.": "Vertraulichkeit | Integrität | Verfügbarkeit",
 # }
-#
-# Wichtig:
-# - Mehrere Lösungen innerhalb EINER Antwort trennst du mit |.
-# - Mehrere passende Fragen werden automatisch als mehrere Antworten behandelt.
 
 QA = {
     "test est st t": "Windows Updates",
@@ -767,13 +756,15 @@ OFFSET_Y = -5
 BOX_LENGTH = 5
 BOX_HEIGHT = 2
 
-KI_SERVER_URL = cfg.get("KI_SERVER_URL", "https://zeitdoc.com").strip().rstrip("/")
+GEMINI_API_KEY = str(cfg.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", ""))).strip()
+GEMINI_MODEL = str(cfg.get("GEMINI_MODEL", "gemini-3.1-flash-lite")).strip() or "gemini-3.1-flash-lite"
+GEMINI_USE_GOOGLE_SEARCH = str(cfg.get("GEMINI_USE_GOOGLE_SEARCH", "1")).strip().lower() not in ("0", "false", "no", "nein", "off")
+
+boolean_ki_enabled = True
 
 desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
 log_dir = desktop_path if os.path.isdir(desktop_path) else os.getcwd()
 ERROR_LOG = os.path.join(log_dir, "test.txt")
-
-boolean_ki_enabled = True
 
 
 # ------------------------------------------------------------
@@ -801,12 +792,10 @@ def close_app(event=None):
         root.quit()
     except Exception:
         pass
-
     try:
         root.destroy()
     except Exception:
         pass
-
     return "break"
 
 
@@ -816,7 +805,6 @@ green_since = None
 status_win = tk.Toplevel(root)
 status_win.overrideredirect(True)
 status_win.attributes("-topmost", True)
-
 status_win.geometry(
     f"{BOX_LENGTH}x{BOX_HEIGHT}+"
     f"{status_win.winfo_screenwidth() - BOX_LENGTH}+"
@@ -839,28 +827,21 @@ label = tk.Label(
     bg=ANSWER_BG_COLOR,
 )
 label.pack()
-
 overlay.withdraw()
 
 
 # ------------------------------------------------------------
-# STATUS
+# STATUS / THREAD
 # ------------------------------------------------------------
 
 def set_status(color):
     global current_status_color, green_since
-
     current_status_color = color
-
     try:
         status.configure(bg=color)
     except Exception:
         pass
-
-    if color == GREEN:
-        green_since = time.time()
-    else:
-        green_since = None
+    green_since = time.time() if color == GREEN else None
 
 
 def set_processing(on: bool):
@@ -871,13 +852,9 @@ def set_processing(on: bool):
 
 
 def status_refresher():
-    do_refresh = False
-
-    if current_status_color == ORANGE:
-        do_refresh = True
-    elif current_status_color == GREEN and green_since is not None:
-        if time.time() - green_since >= 10:
-            do_refresh = True
+    do_refresh = current_status_color == ORANGE
+    if current_status_color == GREEN and green_since is not None:
+        do_refresh = time.time() - green_since >= 10
 
     if do_refresh:
         try:
@@ -889,10 +866,6 @@ def status_refresher():
 
     root.after(500, status_refresher)
 
-
-# ------------------------------------------------------------
-# THREAD HELPER
-# ------------------------------------------------------------
 
 def run_worker(work_fn, done_fn=None, fallback_error="Fehler"):
     def target():
@@ -912,7 +885,7 @@ def run_worker(work_fn, done_fn=None, fallback_error="Fehler"):
 
 
 # ------------------------------------------------------------
-# KI SERVER
+# GEMINI KI
 # ------------------------------------------------------------
 
 KI_QA_DEFAULT_INSTRUCTION = """
@@ -943,18 +916,16 @@ Wenn es mehrere lange Antworten gibt, kürze jede Antwort einzeln ab und trenne 
 WENN EIN BILD GESENDET WIRD:
 Ignoriere Überschriften, Fragetitel, Aufgabennamen und Einleitungstexte.
 Gib nur das aus, was als Lösung eingetragen werden muss.
-
-RICHTIG:
-Router
-ftprlad | setnwdtsfeu | sptnfua
-first mode > user EXEC mode | second mode > privileged EXEC mode
-
-FALSCH:
-What is an ISP?: ftprlad | setnwdtsfeu
-Antwort: Router
-Die Lösung ist Router
-Die Aufgabe heißt ...
 """.strip()
+
+
+def gemini_api_url() -> str:
+    return f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+
+
+def gemini_key_ok() -> bool:
+    key = str(GEMINI_API_KEY or "").strip()
+    return bool(key) and key != "HIER_DEIN_GEMINI_API_KEY_EINFUEGEN"
 
 
 def one_line(text) -> str:
@@ -963,7 +934,6 @@ def one_line(text) -> str:
 
 def strip_wrapping_quotes(text: str) -> str:
     s = one_line(text)
-
     while len(s) >= 2 and (
         (s[0] == '"' and s[-1] == '"')
         or (s[0] == "'" and s[-1] == "'")
@@ -971,136 +941,53 @@ def strip_wrapping_quotes(text: str) -> str:
         or (s[0] == "„" and s[-1] == "“")
     ):
         s = s[1:-1].strip()
-
     return s
 
 
 def strip_bad_ai_prefix(text: str) -> str:
     s = strip_wrapping_quotes(text)
-
     if not s:
         return ""
 
-    # Modell schreibt manchmal: "Die Aufgabe heißt ... | Antwort1 | Antwort2"
-    # Dann ist der erste Pipe-Teil nur Titel/Frage und wird entfernt.
-    pipe_chars = ["|", "｜", "¦", "‖"]
-    for pc in pipe_chars:
-        if pc in s:
-            parts = [p.strip() for p in s.split(pc) if p.strip()]
-            if len(parts) > 1:
-                first_low = parts[0].lower()
-                first_looks_like_title = any(
-                    marker in first_low
-                    for marker in (
-                        "aufgabe",
-                        "frage",
-                        "heißt",
-                        "heisst",
-                        "title",
-                        "task",
-                        "question",
-                        "called",
-                    )
-                )
-                if first_looks_like_title:
-                    s = " | ".join(parts[1:]).strip()
-            break
+    s = s.replace("｜", "|").replace("¦", "|").replace("‖", "|")
+    s = s.replace("→", ">").replace("⇒", ">").replace("->", ">")
 
     bad_prefixes = [
-        "antwort:",
-        "antwort :",
-        "lösung:",
-        "lösung :",
-        "loesung:",
-        "loesung :",
-        "die antwort ist",
-        "die lösung ist",
-        "die loesung ist",
-        "aufgabe:",
-        "aufgabe :",
-        "frage:",
-        "frage :",
-        "titel:",
-        "titel :",
-        "task:",
-        "task :",
-        "question:",
-        "question :",
-        "title:",
-        "title :",
-        "final answer:",
-        "final answer :",
-        "answer:",
-        "answer :",
-        "solution:",
-        "solution :",
+        "antwort:", "antwort :", "lösung:", "lösung :", "loesung:", "loesung :",
+        "die antwort ist", "die lösung ist", "die loesung ist",
+        "aufgabe:", "aufgabe :", "frage:", "frage :", "titel:", "titel :",
+        "task:", "task :", "question:", "question :", "title:", "title :",
+        "final answer:", "final answer :", "answer:", "answer :", "solution:", "solution :",
     ]
 
     changed = True
     while changed:
         changed = False
         low = s.lower().strip()
-
         for prefix in bad_prefixes:
             if low.startswith(prefix):
                 s = s[len(prefix):].strip()
                 changed = True
                 break
 
-    # Sätze wie "Die Aufgabe heißt X. Lösung" entfernen.
-    low = s.lower().strip()
-    title_sentence_starts = (
-        "die aufgabe heißt",
-        "die aufgabe heisst",
-        "die frage heißt",
-        "die frage heisst",
-        "the task is called",
-        "the question is",
-        "the title is",
-    )
+    if "|" in s:
+        parts = [p.strip() for p in s.split("|") if p.strip()]
+        if len(parts) > 1:
+            first_low = parts[0].lower()
+            if any(x in first_low for x in ("aufgabe", "frage", "heißt", "heisst", "title", "task", "question", "called")):
+                s = " | ".join(parts[1:]).strip()
 
-    if low.startswith(title_sentence_starts):
-        for sep in (". ", ": ", " - "):
-            if sep in s:
-                s = s.split(sep, 1)[1].strip()
-                break
-
-    # Falls Modell doch "Frage: Antwort" schreibt:
-    # Nur abschneiden, wenn links wie eine Frage/Aufgabe aussieht.
     if ":" in s:
         left, right = s.split(":", 1)
         left_clean = left.strip()
         right_clean = right.strip()
         left_low = left_clean.lower()
-
         looks_like_question = (
             "?" in left_clean
-            or left_low.startswith((
-                "what ",
-                "which ",
-                "why ",
-                "how ",
-                "when ",
-                "where ",
-                "who ",
-                "wer ",
-                "was ",
-                "wie ",
-                "warum ",
-                "welche ",
-                "welcher ",
-                "welches ",
-                "nenne ",
-                "ordne ",
-                "verbinde ",
-                "match ",
-                "select ",
-                "choose ",
-            ))
-            or any(x in left_low for x in ("aufgabe", "frage", "question", "task"))
             or len(left_clean) > 18
+            or any(x in left_low for x in ("aufgabe", "frage", "question", "task"))
+            or left_low.startswith(("what ", "which ", "why ", "how ", "wer ", "was ", "wie ", "warum ", "welche "))
         )
-
         if looks_like_question and right_clean:
             s = right_clean
 
@@ -1109,29 +996,15 @@ def strip_bad_ai_prefix(text: str) -> str:
 
 def normalize_single_variant(text: str) -> str:
     p = strip_bad_ai_prefix(text)
-
-    if not p:
-        return ""
-
-    p = p.strip()
-    p = p.lstrip("-").lstrip("*").lstrip("•").strip()
-
-    # Nummerierungen entfernen:
-    # "1. Antwort" -> "Antwort"
-    # "1) Antwort" -> "Antwort"
-    p = re.sub(r"^\s*\d+\s*[\.\)]\s*", "", p).strip()
-
-    # Markdown-Reste entfernen
+    p = p.strip().lstrip("-").lstrip("*").lstrip("•").strip()
+    p = re.sub(r"^\s*\d+\s*[\.)]\s*", "", p).strip()
     p = p.replace("**", "").replace("__", "").strip()
-
     return strip_bad_ai_prefix(p)
 
 
 def normalize_ai_answer(text: str) -> str:
     s = "" if text is None else str(text)
 
-    # Manche Server geben Python-Dict-Strings zurück.
-    # Die häufigsten Antwortfelder rausziehen, falls es so aussieht.
     for key in ("response", "answer", "text", "message", "Message"):
         pattern = rf"""['"]{key}['"]\s*:\s*['"]([^'"]+)['"]"""
         match = re.search(pattern, s)
@@ -1142,10 +1015,7 @@ def normalize_ai_answer(text: str) -> str:
     s = s.replace("\r\n", "\n").replace("\r", "\n")
     s = s.replace("｜", "|").replace("¦", "|").replace("‖", "|")
     s = s.replace("→", ">").replace("⇒", ">").replace("->", ">")
-
-    # Zeilenumbrüche aus KI-Listen werden Varianten.
     s = re.sub(r"\n+", " | ", s)
-
     s = strip_bad_ai_prefix(s)
 
     if not s:
@@ -1153,11 +1023,26 @@ def normalize_ai_answer(text: str) -> str:
 
     parts = [normalize_single_variant(p) for p in s.split("|")]
     parts = [p for p in parts if p]
+    return " | ".join(parts) if parts else ""
 
-    if not parts:
-        return ""
 
-    return " | ".join(parts)
+def normalize_answer_text(text: str) -> str:
+    return normalize_ai_answer(text)
+
+
+def extract_gemini_error(response) -> str:
+    raw = response.text or ""
+    try:
+        obj = response.json()
+    except Exception:
+        return normalize_ai_answer(raw) or raw[:300]
+
+    if isinstance(obj, dict):
+        err = obj.get("error")
+        if isinstance(err, dict) and err.get("message"):
+            return normalize_ai_answer(err.get("message")) or err.get("message")
+
+    return normalize_ai_answer(raw) or raw[:300]
 
 
 def extract_ki_text(response) -> str:
@@ -1171,61 +1056,117 @@ def extract_ki_text(response) -> str:
     if isinstance(obj, str):
         return normalize_ai_answer(obj)
 
-    if isinstance(obj, dict):
-        for key in ("response", "answer", "text", "message", "Message", "detail"):
-            value = obj.get(key)
-
-            if isinstance(value, str) and value.strip():
-                return normalize_ai_answer(value)
-
-            if isinstance(value, list):
-                # Detail-Listen nur für Fehler lesbar machen.
-                return normalize_ai_answer(" ".join(str(v) for v in value))
-
-            if isinstance(value, dict):
-                return normalize_ai_answer(str(value))
-
+    if not isinstance(obj, dict):
         return normalize_ai_answer(raw)
+
+    if "error" in obj:
+        return extract_gemini_error(response)
+
+    candidates = obj.get("candidates") or []
+    if candidates:
+        candidate = candidates[0] or {}
+        parts = (candidate.get("content") or {}).get("parts") or []
+        texts = []
+        for part in parts:
+            if isinstance(part, dict) and isinstance(part.get("text"), str):
+                texts.append(part["text"])
+        if texts:
+            return normalize_ai_answer(" ".join(texts))
+
+        finish_reason = candidate.get("finishReason")
+        if finish_reason:
+            return normalize_ai_answer(f"Keine Antwort: {finish_reason}")
+
+    prompt_feedback = obj.get("promptFeedback")
+    if prompt_feedback:
+        return normalize_ai_answer(f"Keine Antwort: {prompt_feedback}")
 
     return normalize_ai_answer(raw)
 
 
-def request_ki_text(question: str, timeout=(5, 120)) -> str:
-    prompt = f"{KI_QA_DEFAULT_INSTRUCTION}\n\nAufgabe:\n{question}"
+def build_gemini_payload(prompt: str, image_base64: str = None) -> dict:
+    parts = []
+
+    if image_base64:
+        parts.append({
+            "inline_data": {
+                "mime_type": "image/jpeg",
+                "data": image_base64,
+            }
+        })
+
+    parts.append({"text": prompt})
+
+    payload = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": parts,
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0.0,
+            "topP": 0.1,
+            "topK": 1,
+            "maxOutputTokens": 512,
+        },
+    }
+
+    if GEMINI_USE_GOOGLE_SEARCH:
+        payload["tools"] = [
+            {
+                "google_search": {}
+            }
+        ]
+
+    return payload
+
+
+def request_gemini(payload: dict, timeout=(5, 180)) -> str:
+    if requests is None:
+        return "requests nicht verfügbar"
+
+    if not gemini_key_ok():
+        return "GEMINI_API_KEY fehlt"
 
     try:
         response = requests.post(
-            f"{KI_SERVER_URL}/text",
-            json={"message": prompt},
+            gemini_api_url(),
+            headers={
+                "x-goog-api-key": GEMINI_API_KEY,
+                "Content-Type": "application/json",
+            },
+            json=payload,
             timeout=timeout,
         )
 
-        if response.status_code == 202:
-            return extract_ki_text(response) or "Modell wird installiert"
-
         if response.status_code >= 400:
-            msg = extract_ki_text(response)
-            log_error(f"KI Text HTTP {response.status_code}: {msg}")
-            return f"KI HTTP {response.status_code}: {msg[:120]}"
+            msg = extract_gemini_error(response)
+            log_error(f"Gemini HTTP {response.status_code}: {msg}")
+            return f"Gemini HTTP {response.status_code}: {msg[:120]}"
 
         text = extract_ki_text(response)
-
-        if not text:
-            return "Keine Antwort"
-
-        return text
+        return text if text else "Keine Antwort"
 
     except requests.exceptions.Timeout:
-        log_error("KI Text Timeout")
-        return "KI Timeout"
-
+        log_error("Gemini Timeout")
+        return "Gemini Timeout"
     except requests.exceptions.RequestException as e:
-        log_error(f"KI Text RequestException: {repr(e)}")
-        return "KI nicht erreichbar"
-
+        log_error(f"Gemini RequestException: {repr(e)}")
+        return "Gemini nicht erreichbar"
     except Exception as e:
-        log_error(f"KI Text Fehler: {repr(e)}")
-        return f"KI Fehler: {type(e).__name__}"
+        log_error(f"Gemini Fehler: {repr(e)}")
+        return f"Gemini Fehler: {type(e).__name__}"
+
+
+def request_ki_text(question: str, timeout=(5, 120)) -> str:
+    prompt = (
+        f"{KI_QA_DEFAULT_INSTRUCTION}\n\n"
+        "Nutze Google Search nur dann, wenn aktuelle Informationen oder externe Fakten nötig sind.\n\n"
+        f"Aufgabe:\n{question}"
+    )
+    payload = build_gemini_payload(prompt)
+    return request_gemini(payload, timeout=timeout)
 
 
 def request_ki_image(question: str, bbox) -> str:
@@ -1237,65 +1178,33 @@ def request_ki_image(question: str, bbox) -> str:
             return "Screenshot-Auswahl ungültig"
 
         left, top, right, bottom = [int(v) for v in bbox]
-
         if right <= left or bottom <= top:
             return "Screenshot-Auswahl ungültig"
-
         if (right - left) < 5 or (bottom - top) < 5:
             return "Auswahl zu klein"
 
-        # Screenshot NUR im RAM
         img = ImageGrab.grab(bbox=(left, top, right, bottom)).convert("RGB")
 
-        # JPEG NUR im RAM
         buf = BytesIO()
         img.save(buf, format="JPEG", quality=85)
         image_bytes = buf.getvalue()
+        image_base64 = base64.b64encode(image_bytes).decode("utf-8")
 
-        base64_image = base64.b64encode(image_bytes).decode("utf-8")
-        data_url = f"data:image/jpeg;base64,{base64_image}"
-
-        prompt = f"{KI_QA_DEFAULT_INSTRUCTION}\n\nAufgabe:\n{question or 'Löse die Aufgabe im Screenshot.'}"
-
-        payload = {
-            "Message": prompt,
-            "Image": data_url,
-            "message": prompt,
-            "image": data_url,
-        }
-
-        response = requests.post(
-            f"{KI_SERVER_URL}/vision",
-            json=payload,
-            timeout=(5, 180),
+        prompt = (
+            f"{KI_QA_DEFAULT_INSTRUCTION}\n\n"
+            "Du bekommst einen Screenshot. Lies nur den relevanten Aufgabeninhalt aus dem Bild. "
+            "Ignoriere Überschriften, Fragetitel, Aufgabennamen und Einleitungstexte. "
+            "Nutze Google Search nur dann, wenn aktuelle Informationen, Webseiten, Software-Dokumentation oder externe Fakten nötig sind. "
+            "Gib ausschließlich das aus, was als finale Lösung eingetragen werden muss.\n\n"
+            f"Aufgabe:\n{question or 'Löse die Aufgabe im Screenshot.'}"
         )
 
-        if response.status_code == 202:
-            return extract_ki_text(response) or "Modell wird installiert"
-
-        if response.status_code >= 400:
-            msg = extract_ki_text(response)
-            log_error(f"KI Vision HTTP {response.status_code}: {msg}")
-            return f"KI HTTP {response.status_code}: {msg[:120]}"
-
-        text = extract_ki_text(response)
-
-        if not text:
-            return "Keine Antwort"
-
-        return text
-
-    except requests.exceptions.Timeout:
-        log_error("KI Vision Timeout")
-        return "KI Timeout"
-
-    except requests.exceptions.RequestException as e:
-        log_error(f"KI Vision RequestException: {repr(e)}")
-        return "KI nicht erreichbar"
+        payload = build_gemini_payload(prompt, image_base64=image_base64)
+        return request_gemini(payload, timeout=(5, 180))
 
     except Exception as e:
-        log_error(f"KI Vision Fehler: {repr(e)}")
-        return f"KI Fehler: {type(e).__name__}"
+        log_error(f"Gemini Vision Fehler: {repr(e)}")
+        return f"Gemini Fehler: {type(e).__name__}"
 
 
 def ask_ai_async(question: str):
@@ -1313,106 +1222,11 @@ def ask_ai_async(question: str):
 
 
 # ------------------------------------------------------------
-# SCREEN CAPTURE / KI IMAGE
-# ------------------------------------------------------------
-
-def wait_for_two_clicks():
-    if mouse is None:
-        return "pynput nicht verfügbar"
-
-    points = []
-
-    print("Klicke Punkt 1 oben-links, danach Punkt 2 unten-rechts.")
-
-    def on_click(x, y, button, pressed):
-        if pressed and button == mouse.Button.left:
-            points.append((x, y))
-            print(f"Punkt {len(points)}: {x}, {y}")
-
-            if len(points) >= 2:
-                return False
-
-        return None
-
-    try:
-        with mouse.Listener(on_click=on_click) as listener:
-            listener.join()
-    except Exception as e:
-        log_error(f"Mouse Listener Fehler: {repr(e)}")
-        return "Mausauswahl Fehler"
-
-    if len(points) < 2:
-        return "Auswahl abgebrochen"
-
-    (x1, y1), (x2, y2) = points
-
-    left, right = sorted([x1, x2])
-    top, bottom = sorted([y1, y2])
-
-    w = right - left
-    h = bottom - top
-
-    if w < 5 or h < 5:
-        return "Auswahl zu klein"
-
-    return left, top, right, bottom
-
-
-def start_mouse_capture_and_ocr_async():
-    global listening, buffer, current_letter
-
-    listening = False
-    buffer = ""
-    current_letter = "a"
-
-    overlay.withdraw()
-    set_status(MAGENTA)
-
-    def work():
-        bbox = wait_for_two_clicks()
-
-        if isinstance(bbox, str):
-            return bbox
-
-        prompt = (
-            "Löse die Aufgabe im Screenshot. "
-            "Gib ausschließlich die finale Lösung aus. "
-            "Wiederhole keine Frage und keinen Aufgabentitel. "
-            "Schreibe keine Erklärung. "
-            "Mehrere Antworten exakt mit | trennen. "
-            "Zuordnungen exakt im Format Teil1 > Teil2 | Teil3 > Teil4."
-        )
-
-        return request_ki_image(prompt, bbox)
-
-    def done(answer):
-        try:
-            set_status(ORANGE)
-            set_answer_bindings()
-
-            if answer is None or not str(answer).strip():
-                show_answer("Keine Antwort vom Server")
-            else:
-                show_answer(answer)
-
-        except Exception as e:
-            log_error(f"KI Bild done Fehler: {repr(e)}")
-            try:
-                label.configure(text=f"Done Fehler: {type(e).__name__}", anchor="w", fg=RED)
-                force_show_overlay()
-            except Exception:
-                pass
-
-    run_worker(work, done, fallback_error="KI Fehler")
-
-
-# ------------------------------------------------------------
 # POSITION / GEOMETRIE
 # ------------------------------------------------------------
 
 def compute_position(sw, sh, w, h):
     pos = POSITION
-
     if pos == "top_left":
         x, y = 0, 0
     elif pos == "top_center":
@@ -1436,10 +1250,8 @@ def compute_position(sw, sh, w, h):
 
     x += OFFSET_X
     y += OFFSET_Y
-
     x = max(0, min(sw - w, x))
     y = max(0, min(sh - h, y))
-
     return x, y
 
 
@@ -1449,22 +1261,89 @@ def recalc_overlay_geometry():
 
     wrap = int(sw * MAX_WIDTH_RATIO)
     label.configure(wraplength=wrap)
-
     overlay.update_idletasks()
 
-    w = label.winfo_reqwidth()
-    h = label.winfo_reqheight()
-
-    # Sicherheits-Minimum, damit das Overlay nie unsichtbar/0px wird
-    w = max(w, 40)
-    h = max(h, FONT_SIZE + 8)
+    w = max(label.winfo_reqwidth(), 40)
+    h = max(label.winfo_reqheight(), FONT_SIZE + 8)
 
     bg_w = w if BACKGROUND_WIDTH is None else max(BACKGROUND_WIDTH, 40)
     bg_h = h if BACKGROUND_HEIGHT is None else max(BACKGROUND_HEIGHT, FONT_SIZE + 8)
 
     x, y = compute_position(sw, sh, bg_w, bg_h)
-
     overlay.geometry(f"{bg_w}x{bg_h}+{x}+{y}")
+
+
+# ------------------------------------------------------------
+# SCREEN CAPTURE / KI IMAGE
+# ------------------------------------------------------------
+
+def wait_for_two_clicks():
+    if mouse is None:
+        return "pynput nicht verfügbar"
+
+    points = []
+    print("Klicke Punkt 1 oben-links, danach Punkt 2 unten-rechts.")
+
+    def on_click(x, y, button, pressed):
+        if pressed and button == mouse.Button.left:
+            points.append((x, y))
+            print(f"Punkt {len(points)}: {x}, {y}")
+            if len(points) >= 2:
+                return False
+        return None
+
+    try:
+        with mouse.Listener(on_click=on_click) as listener:
+            listener.join()
+    except Exception as e:
+        log_error(f"Mouse Listener Fehler: {repr(e)}")
+        return "Mausauswahl Fehler"
+
+    if len(points) < 2:
+        return "Auswahl abgebrochen"
+
+    (x1, y1), (x2, y2) = points
+    left, right = sorted([x1, x2])
+    top, bottom = sorted([y1, y2])
+
+    if right - left < 5 or bottom - top < 5:
+        return "Auswahl zu klein"
+
+    return left, top, right, bottom
+
+
+def start_mouse_capture_and_ocr_async():
+    global listening, buffer, current_letter
+
+    listening = False
+    buffer = ""
+    current_letter = "a"
+
+    overlay.withdraw()
+    set_status(MAGENTA)
+
+    def work():
+        bbox = wait_for_two_clicks()
+        if isinstance(bbox, str):
+            return bbox
+
+        prompt = (
+            "Löse die Aufgabe im Screenshot. "
+            "Gib ausschließlich die finale Lösung aus. "
+            "Wiederhole keine Frage und keinen Aufgabentitel. "
+            "Schreibe keine Erklärung. "
+            "Mehrere Antworten exakt mit | trennen. "
+            "Zuordnungen exakt im Format Teil1 > Teil2 | Teil3 > Teil4."
+        )
+        return request_ki_image(prompt, bbox)
+
+    def done(answer):
+        set_status(ORANGE)
+        set_answer_bindings()
+        show_answer(answer if answer else "Keine Antwort von Gemini")
+
+    run_worker(work, done, fallback_error="KI Fehler")
+
 
 # ------------------------------------------------------------
 # ANSWER STATE
@@ -1472,7 +1351,6 @@ def recalc_overlay_geometry():
 
 current_answers = []
 current_answer_index = 0
-
 current_variants = []
 current_variant_index = 0
 
@@ -1481,142 +1359,16 @@ buffer = ""
 current_letter = "a"
 
 
-def safe_one_line(text) -> str:
-    return " ".join(str(text or "").strip().split())
-
-
-def remove_ai_prefix(text: str) -> str:
-    s = safe_one_line(text)
-
-    if not s:
-        return ""
-
-    # Häufige KI-Vorsätze entfernen
-    prefixes = [
-        "antwort:",
-        "antwort :",
-        "lösung:",
-        "lösung :",
-        "loesung:",
-        "loesung :",
-        "die antwort ist",
-        "die lösung ist",
-        "die loesung ist",
-        "aufgabe:",
-        "aufgabe :",
-        "frage:",
-        "frage :",
-        "titel:",
-        "titel :",
-        "answer:",
-        "answer :",
-        "solution:",
-        "solution :",
-        "final answer:",
-        "final answer :",
-    ]
-
-    changed = True
-    while changed:
-        changed = False
-        low = s.lower().strip()
-
-        for p in prefixes:
-            if low.startswith(p):
-                s = s[len(p):].strip()
-                changed = True
-                break
-
-    # Falls KI "Frage: Antwort" schreibt, links abschneiden
-    if ":" in s:
-        left, right = s.split(":", 1)
-        left_low = left.lower().strip()
-        right = right.strip()
-
-        looks_like_question = (
-            "?" in left
-            or len(left.strip()) > 18
-            or any(x in left_low for x in [
-                "frage",
-                "aufgabe",
-                "question",
-                "task",
-                "what ",
-                "which ",
-                "how ",
-                "why ",
-                "was ",
-                "wie ",
-                "welche ",
-                "ordne ",
-                "verbinde ",
-            ])
-        )
-
-        if looks_like_question and right:
-            s = right
-
-    # Falls KI "Die Aufgabe heißt X | Lösung1 | Lösung2" schreibt
-    if "|" in s:
-        parts = [p.strip() for p in s.split("|") if p.strip()]
-        if len(parts) > 1:
-            first_low = parts[0].lower()
-            if any(x in first_low for x in ["aufgabe", "frage", "heißt", "heisst", "title", "task", "question"]):
-                s = " | ".join(parts[1:])
-
-    return safe_one_line(s)
-
-
-def normalize_answer_text(text: str) -> str:
-    s = "" if text is None else str(text)
-
-    # Server-/JSON-Reste abfangen, falls dict als String angezeigt wird
-    for key in ("response", "answer", "text", "message", "Message"):
-        m = re.search(rf"""['"]{key}['"]\s*:\s*['"]([^'"]+)['"]""", s)
-        if m:
-            s = m.group(1)
-            break
-
-    s = s.replace("\r\n", "\n").replace("\r", "\n")
-    s = s.replace("｜", "|").replace("¦", "|").replace("‖", "|")
-    s = s.replace("→", ">").replace("⇒", ">").replace("->", ">")
-
-    # Zeilenlisten als Varianten behandeln
-    s = re.sub(r"\n+", " | ", s)
-
-    # Markdown entfernen
-    s = s.replace("**", "").replace("__", "")
-
-    s = remove_ai_prefix(s)
-
-    if not s:
-        return ""
-
-    parts = []
-    for p in s.split("|"):
-        p = remove_ai_prefix(p)
-        p = p.strip()
-        p = p.lstrip("-").lstrip("*").lstrip("•").strip()
-        p = re.sub(r"^\s*\d+\s*[\.\)]\s*", "", p).strip()
-
-        if p:
-            parts.append(p)
-
-    return " | ".join(parts)
-
-
 def split_variants(text: str) -> list[str]:
-    text = normalize_answer_text(text)
-
+    text = normalize_ai_answer(text)
     if not text:
         return ["Keine Antwort"]
-
     if "|" not in text:
         return [text.strip()]
 
     parts = []
     for p in text.split("|"):
-        p = normalize_answer_text(p)
+        p = normalize_ai_answer(p)
         if p:
             parts.append(p)
 
@@ -1634,10 +1386,6 @@ def load_answer_at(index: int, variant_index: int = 0):
 
     current_answer_index = index % len(current_answers)
     current_variants = split_variants(current_answers[current_answer_index])
-
-    if not current_variants:
-        current_variants = ["Keine Antwort"]
-
     current_variant_index = max(0, min(variant_index, len(current_variants) - 1))
 
 
@@ -1649,21 +1397,13 @@ def update_label_with_current_variant():
     total_q = len(current_answers)
     q_idx = current_answer_index + 1
 
-    if not current_variants:
-        base_txt = "Keine Antwort"
-        total_v = 1
-        v_idx = 1
-    else:
-        base_txt = current_variants[current_variant_index]
-        total_v = len(current_variants)
-        v_idx = current_variant_index + 1
+    base_txt = current_variants[current_variant_index] if current_variants else "Keine Antwort"
+    total_v = len(current_variants) if current_variants else 1
+    v_idx = current_variant_index + 1
 
     prefix = ""
-
     if total_q > 1:
         prefix += f"Q: {q_idx}/{total_q}  "
-
-    # Genau das, was du wolltest: 1/3, 2/3, ...
     if total_v > 1:
         prefix += f"{v_idx}/{total_v}  "
 
@@ -1692,11 +1432,7 @@ def show_answer(answers):
         if answers is None:
             current_answers = []
         elif isinstance(answers, list):
-            current_answers = []
-            for a in answers:
-                cleaned = normalize_answer_text(a)
-                if cleaned:
-                    current_answers.append(cleaned)
+            current_answers = [normalize_answer_text(a) for a in answers if normalize_answer_text(a)]
         else:
             cleaned = normalize_answer_text(answers)
             current_answers = [cleaned] if cleaned else []
@@ -1725,81 +1461,60 @@ def refresh_answer_view():
 def next_answer(event=None):
     if not current_answers:
         return "break"
-
     load_answer_at(current_answer_index + 1, 0)
     refresh_answer_view()
-
     return "break"
 
 
 def prev_answer(event=None):
     if not current_answers:
         return "break"
-
     load_answer_at(current_answer_index - 1, 0)
     refresh_answer_view()
-
     return "break"
 
 
 def next_variant(event=None):
     global current_variant_index
-
     if not current_answers:
         return "break"
-
     if current_variant_index < len(current_variants) - 1:
         current_variant_index += 1
     else:
         load_answer_at(current_answer_index + 1, 0)
-
     refresh_answer_view()
-
     return "break"
 
 
 def prev_variant(event=None):
     global current_variant_index
-
     if not current_answers:
         return "break"
-
     if current_variant_index > 0:
         current_variant_index -= 1
     else:
         previous_answer_index = (current_answer_index - 1) % len(current_answers)
         previous_variants = split_variants(current_answers[previous_answer_index])
         load_answer_at(previous_answer_index, len(previous_variants) - 1)
-
     refresh_answer_view()
-
     return "break"
 
 
 def scroll_answers(event):
     num = getattr(event, "num", None)
     delta = getattr(event, "delta", 0)
-
     if delta < 0 or num == 5:
         return next_variant()
-
     return prev_variant()
+
+
 # ------------------------------------------------------------
 # BINDINGS
 # ------------------------------------------------------------
 
 MODE_BINDINGS = [
-    "<KeyPress>",
-    "<MouseWheel>",
-    "<Button-2>",
-    "<Button-3>",
-    "<Button-4>",
-    "<Button-5>",
-    "<Return>",
-    "<KP_Enter>",
-    "<Right>",
-    "<Left>",
-    "<Shift_R>",
+    "<KeyPress>", "<MouseWheel>", "<Button-2>", "<Button-3>", "<Button-4>", "<Button-5>",
+    "<Return>", "<KP_Enter>", "<Right>", "<Left>", "<Shift_R>",
 ]
 
 
@@ -1813,35 +1528,27 @@ def clear_mode_bindings():
 
 def set_answer_bindings():
     clear_mode_bindings()
-
     root.bind_all("<MouseWheel>", scroll_answers)
     root.bind_all("<Button-4>", scroll_answers)
     root.bind_all("<Button-5>", scroll_answers)
-
     root.bind_all("<Button-2>", next_answer)
     root.bind_all("<Button-3>", next_answer)
-
     root.bind_all("<Return>", next_answer)
     root.bind_all("<KP_Enter>", next_answer)
-
     root.bind_all("<Right>", next_variant)
     root.bind_all("<Left>", prev_variant)
-
     root.bind_all("<Shift_R>", close_app)
 
 
 def set_search_bindings():
     clear_mode_bindings()
-
     root.bind_all("<KeyPress>", handle_key)
     root.bind_all("<MouseWheel>", on_scroll)
     root.bind_all("<Button-4>", on_scroll)
     root.bind_all("<Button-5>", on_scroll)
     root.bind_all("<Button-3>", lambda event: handle_search_query(buffer))
-
     root.bind_all("<Return>", lambda event: handle_search_query(buffer))
     root.bind_all("<KP_Enter>", lambda event: handle_search_query(buffer))
-
     root.bind_all("<Shift_R>", close_app)
 
 
@@ -1861,7 +1568,6 @@ def get_initials(s):
 def find_answer(query):
     answers = []
     q = normalize(query)
-
     if not q:
         return answers
 
@@ -1871,12 +1577,9 @@ def find_answer(query):
                 answers.append(QA[key])
         return answers
 
-    initials_q = q
-
-    if len(initials_q) >= 2 and initials_q.isalpha():
+    if len(q) >= 2 and q.isalpha():
         for key in QA:
-            key_initials = get_initials(key)
-            if key_initials.startswith(initials_q):
+            if get_initials(key).startswith(q):
                 answers.append(QA[key])
 
     return answers
@@ -1895,27 +1598,18 @@ def update_overlay_text(text: str):
 
 
 def update_listening_overlay():
-    query = buffer
-
-    if query:
-        n = len(find_answer(query))
-    else:
-        n = 0
-
+    n = len(find_answer(buffer)) if buffer else 0
     update_overlay_text(f"{buffer}{current_letter} | A: {n}")
 
 
 def start_listening():
     global listening, buffer, current_letter
-
     listening = True
     buffer = ""
     current_letter = "a"
-
     set_status(GREEN)
     set_search_bindings()
     update_listening_overlay()
-
     overlay.deiconify()
     overlay.lift()
     overlay.focus_force()
@@ -1923,11 +1617,9 @@ def start_listening():
 
 def stop_listening():
     global listening, buffer, current_letter
-
     listening = False
     buffer = ""
     current_letter = "a"
-
     clear_mode_bindings()
     set_status(ORANGE)
     overlay.withdraw()
@@ -1938,7 +1630,6 @@ def on_status_click(event=None):
         stop_listening()
     else:
         start_listening()
-
     return "break"
 
 
@@ -1954,85 +1645,65 @@ def set_status_win_binds():
 def get_next_letter(s: str) -> str:
     if not s:
         return s
-
     last_char = s[-1]
-
     if last_char.isalpha():
         if last_char == "z":
             return s[:-1] + "a"
         if last_char == "Z":
             return s[:-1] + "A"
         return s[:-1] + chr(ord(last_char) + 1)
-
     return s
 
 
 def get_prev_letter(s: str) -> str:
     if not s:
         return s
-
     last_char = s[-1]
-
     if last_char.isalpha():
         if last_char == "a":
             return s[:-1] + "z"
         if last_char == "A":
             return s[:-1] + "Z"
         return s[:-1] + chr(ord(last_char) - 1)
-
     return s
 
 
 def next_letter(event=None):
     global current_letter
-
     current_letter = get_next_letter(current_letter)
-
     if listening:
         update_listening_overlay()
-
     return "break"
 
 
 def prev_letter(event=None):
     global current_letter
-
     current_letter = get_prev_letter(current_letter)
-
     if listening:
         update_listening_overlay()
-
     return "break"
 
 
 def on_scroll(event):
     num = getattr(event, "num", None)
     delta = getattr(event, "delta", 0)
-
     if delta < 0 or num == 5:
         return next_letter()
-
     return prev_letter()
 
 
 # ------------------------------------------------------------
-# KI REQUEST CHECK
+# KI REQUEST CHECK / KEY HANDLING
 # ------------------------------------------------------------
 
 def is_ki_request(text: str) -> tuple[bool, str]:
     text = str(text)
-
     if text.endswith("?") and boolean_ki_enabled:
         print("KI enabled.")
         return True, text[:-1].strip()
-
     print("Not a KI request.", boolean_ki_enabled)
     return False, text
 
-
-# ------------------------------------------------------------
-# KEY HANDLING
-# ------------------------------------------------------------
 
 def handle_key(event):
     global listening, buffer, current_letter
@@ -2071,7 +1742,6 @@ def handle_key(event):
     if ks == "BackSpace":
         if buffer:
             buffer = buffer[:-1]
-
         current_letter = "a"
         update_listening_overlay()
         return "break"
@@ -2093,24 +1763,20 @@ def handle_search_query(query_text: str):
     global listening, buffer, current_letter
 
     final_text = str(query_text).strip()
-
     listening = False
     buffer = ""
     current_letter = "a"
-
     overlay.withdraw()
 
     if final_text.lower() == "delete":
         return close_app()
 
     is_ki, question = is_ki_request(final_text)
-
     if is_ki:
         ask_ai_async(question)
         return "break"
 
     ans = find_answer(final_text)
-
     if ans:
         set_status(ORANGE)
         set_answer_bindings()
@@ -2130,5 +1796,4 @@ def handle_search_query(query_text: str):
 set_status(ORANGE)
 set_status_win_binds()
 status_refresher()
-
 root.mainloop()
