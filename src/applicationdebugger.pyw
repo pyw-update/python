@@ -727,18 +727,47 @@ QA = {
     "Risiko: Sicherungsbänder und Datensicherungsgerät werden gemeinsam durch Brand zerstört.": "Bezeichnung > Datenverlust | Abwehr > Datensicherung in einem gespiegelten, regional getrennten Rechenzentrum | Abwehr > Verfügbarkeitskontrolle | Abwehr > räumlich getrennte Aufbewahrung von Backups",
 }
 
-
 # ------------------------------------------------------------
 # KONFIG
 # ------------------------------------------------------------
 
-FONT_NAME = "Arial"
-FONT_SIZE = to_int(cfg.get("FONT_SIZE", 7), 7)
-FONT_STYLE = "normal"
+def clean_env_value(value, default):
+    value = str(value or "").strip()
 
-TEXT_COLOR = cfg.get("TEXT_COLOR", "#d3d3d3")
-ANSWER_BG_COLOR = cfg.get("ANSWER_BG_COLOR", "#eeeeee")
-POSITION = cfg.get("TEXT_POSITION", "bottom_center")
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+        value = value[1:-1].strip()
+
+    if not value:
+        return default
+
+    return value
+
+
+def clean_color(value, default):
+    value = clean_env_value(value, default)
+
+    # Falls jemand aus Versehen nur # oder leeren Wert einträgt
+    if value == "#":
+        return default
+
+    # Hex-Farbe grob prüfen: #RGB oder #RRGGBB
+    if value.startswith("#"):
+        hex_part = value[1:]
+        if len(hex_part) in (3, 6) and all(c in "0123456789abcdefABCDEF" for c in hex_part):
+            return value
+        return default
+
+    # Normale Tkinter-Farbnamen wie red, white, black erlauben
+    return value
+
+
+FONT_NAME = clean_env_value(cfg.get("FONT_NAME", "Arial"), "Arial")
+FONT_SIZE = to_int(cfg.get("FONT_SIZE", 7), 7)
+FONT_STYLE = clean_env_value(cfg.get("FONT_STYLE", "normal"), "normal")
+
+TEXT_COLOR = clean_color(cfg.get("TEXT_COLOR", "#d3d3d3"), "#d3d3d3")
+ANSWER_BG_COLOR = clean_color(cfg.get("ANSWER_BG_COLOR", "#eeeeee"), "#eeeeee")
+POSITION = clean_env_value(cfg.get("TEXT_POSITION", "bottom_center"), "bottom_center")
 
 MAX_WIDTH_RATIO = 0.50
 
@@ -756,15 +785,13 @@ OFFSET_Y = -5
 BOX_LENGTH = 5
 BOX_HEIGHT = 2
 
-GEMINI_API_KEY = str(cfg.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", ""))).strip()
-GEMINI_MODEL = str(cfg.get("GEMINI_MODEL", "gemini-3.1-flash-lite")).strip() or "gemini-3.1-flash-lite"
-GEMINI_USE_GOOGLE_SEARCH = str(cfg.get("GEMINI_USE_GOOGLE_SEARCH", "1")).strip().lower() not in ("0", "false", "no", "nein", "off")
-
-boolean_ki_enabled = True
+KI_SERVER_URL = clean_env_value(cfg.get("KI_SERVER_URL", "https://zeitdoc.com"), "https://zeitdoc.com").rstrip("/")
 
 desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
 log_dir = desktop_path if os.path.isdir(desktop_path) else os.getcwd()
 ERROR_LOG = os.path.join(log_dir, "test.txt")
+
+boolean_ki_enabled = True
 
 
 # ------------------------------------------------------------
