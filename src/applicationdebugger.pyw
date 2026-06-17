@@ -936,10 +936,6 @@ FORMAT:
 - Mehrere Antworten: Antwort1 | Antwort2 | Antwort3
 - Zuordnungsaufgabe: Teil1 > Teil2 | Teil3 > Teil4
 
-ABKÜRZUNGSREGEL:
-Wenn eine einzelne Antwort länger als 50 Zeichen ist, schreibe nur die Anfangsbuchstaben aller Wörter dieser Antwort.
-Wenn es mehrere lange Antworten gibt, kürze jede Antwort einzeln ab und trenne sie weiter mit " | ".
-
 WENN EIN BILD GESENDET WIRD:
 Ignoriere Überschriften, Fragetitel, Aufgabennamen und Einleitungstexte.
 Gib nur das aus, was als Lösung eingetragen werden muss.
