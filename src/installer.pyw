@@ -92,9 +92,11 @@ def download_or_update_app() -> bool:
 
     try:
         print(f"→ Lade {FILE_NAME} herunter ...")
-        context = ssl._create_unverified_context()
+        context = ssl.create_default_context()
         req = urllib.request.Request(UPDATE_URL)
         req.add_header("Pragma", "no-cache")
+        req.add_header("Cache-Control", "no-cache")
+        req.add_header("User-Agent", "Python-Installer")
         with urllib.request.urlopen(req, timeout=15, context=context) as resp:
             if getattr(resp, "status", 200) != 200:
                 print(f"Download fehlgeschlagen – Status: {getattr(resp,'status', 'unbekannt')}")

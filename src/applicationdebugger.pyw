@@ -36,8 +36,10 @@ def ensure_default_env(env_file=".env"):
     defaults = {
         "GEMINI_API_KEY": "HIER_DEIN_GEMINI_API_KEY_EINFUEGEN",
         "GEMINI_MODEL": "gemini-3.1-flash-lite",
-        "GEMINI_USE_GOOGLE_SEARCH": "1",
+        "GEMINI_USE_GOOGLE_SEARCH": "0",
+        "FONT_NAME": "Arial",
         "FONT_SIZE": "7",
+        "FONT_STYLE": "normal",
         "TEXT_POSITION": "bottom_center",
         "TEXT_COLOR": "#d3d3d3",
         "ANSWER_BG_COLOR": "#eeeeee",
@@ -48,7 +50,8 @@ def ensure_default_env(env_file=".env"):
         f.write("# Trage hier deinen Gemini API Key ein.\n")
         f.write("# TEXT_POSITION: top_left, top_center, top_right, center_left, center, center_right, bottom_left, bottom_center, bottom_right\n\n")
         for k, v in defaults.items():
-            f.write(f"{k}={v}\n")
+            safe_value = str(v).replace('\\', '\\\\').replace('"', '\\"')
+            f.write(f'{k}="{safe_value}"\n')
 
 
 def load_env(env_file=".env", overwrite=False):
@@ -90,6 +93,12 @@ def to_int(value, default):
         return default
 
 
+def to_bool(value, default=False):
+    if value is None:
+        return default
+    return str(value).strip().lower() in ("1", "true", "yes", "ja", "on")
+
+
 ensure_default_env(".env")
 cfg = load_env(".env")
 
@@ -103,6 +112,7 @@ cfg = load_env(".env")
 #     "Was bedeutet Vertraulichkeit?": "Nur Berechtigte dürfen Daten lesen.",
 #     "Nenne die drei Schutzziele.": "Vertraulichkeit | Integrität | Verfügbarkeit",
 # }
+
 
 QA = {
     "test est st t": "Windows Updates",
@@ -727,6 +737,7 @@ QA = {
     "Risiko: Sicherungsbänder und Datensicherungsgerät werden gemeinsam durch Brand zerstört.": "Bezeichnung > Datenverlust | Abwehr > Datensicherung in einem gespiegelten, regional getrennten Rechenzentrum | Abwehr > Verfügbarkeitskontrolle | Abwehr > räumlich getrennte Aufbewahrung von Backups",
 }
 
+
 # ------------------------------------------------------------
 # KONFIG
 # ------------------------------------------------------------
@@ -759,6 +770,26 @@ def clean_color(value, default):
 
     # Normale Tkinter-Farbnamen wie red, white, black erlauben
     return value
+
+
+# ------------------------------------------------------------
+# GEMINI KONFIG
+# ------------------------------------------------------------
+
+GEMINI_API_KEY = clean_env_value(
+    cfg.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", "")),
+    ""
+)
+
+GEMINI_MODEL = clean_env_value(
+    cfg.get("GEMINI_MODEL", os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")),
+    "gemini-3.1-flash-lite"
+)
+
+GEMINI_USE_GOOGLE_SEARCH = to_bool(
+    cfg.get("GEMINI_USE_GOOGLE_SEARCH", os.environ.get("GEMINI_USE_GOOGLE_SEARCH", "0")),
+    False
+)
 
 
 FONT_NAME = clean_env_value(cfg.get("FONT_NAME", "Arial"), "Arial")
