@@ -204,6 +204,7 @@ GREEN = "#00cc44"
 RED = "#ff0000"
 MAGENTA = "#ff00ff"
 DARKMAGENTA = "#9900ff"
+BLUE = "#0099ff"
 
 BACKGROUND_WIDTH = None
 BACKGROUND_HEIGHT = None
@@ -764,12 +765,18 @@ def wait_for_two_clicks():
 
 
 def start_mouse_capture_and_ocr_async():
-    global listening, buffer, current_letter
+    global listening, buffer, current_letter, app_mode, image_capture_running
 
+    if image_capture_running:
+        return "break"
+
+    app_mode = MODE_AI_IMAGE
+    image_capture_running = True
     listening = False
     buffer = ""
     current_letter = "a"
 
+    clear_mode_bindings()
     overlay.withdraw()
     set_status(MAGENTA)
 
@@ -789,11 +796,15 @@ def start_mouse_capture_and_ocr_async():
         return request_ki_image(prompt, bbox)
 
     def done(answer):
+        global app_mode, image_capture_running
+        image_capture_running = False
+        app_mode = MODE_IDLE
         set_status(ORANGE)
         set_answer_bindings()
         show_answer(answer if answer else "Keine Antwort von Gemini")
 
     run_worker(work, done, fallback_error="KI Fehler")
+    return "break"
 
 
 # ------------------------------------------------------------
@@ -804,6 +815,14 @@ current_answers = []
 current_answer_index = 0
 current_variants = []
 current_variant_index = 0
+
+MODE_IDLE = "idle"
+MODE_WRITE = "write"
+MODE_AI_TEXT = "ai_text"
+MODE_AI_IMAGE = "ai_image"
+
+app_mode = MODE_IDLE
+image_capture_running = False
 
 listening = False
 buffer = ""
@@ -1049,12 +1068,17 @@ def update_overlay_text(text: str):
 
 
 def update_listening_overlay():
+    if app_mode == MODE_AI_TEXT:
+        update_overlay_text(f"KI: {buffer}{current_letter}")
+        return
+
     n = len(find_answer(buffer)) if buffer else 0
     update_overlay_text(f"{buffer}{current_letter} | A: {n}")
 
 
 def start_listening():
-    global listening, buffer, current_letter
+    global app_mode, listening, buffer, current_letter
+    app_mode = MODE_WRITE
     listening = True
     buffer = ""
     current_letter = "a"
@@ -1066,8 +1090,23 @@ def start_listening():
     overlay.focus_force()
 
 
+def start_ai_text_mode():
+    global app_mode, listening, buffer, current_letter
+    app_mode = MODE_AI_TEXT
+    listening = True
+    buffer = ""
+    current_letter = "a"
+    set_status(BLUE)
+    set_search_bindings()
+    update_listening_overlay()
+    overlay.deiconify()
+    overlay.lift()
+    overlay.focus_force()
+
+
 def stop_listening():
-    global listening, buffer, current_letter
+    global app_mode, listening, buffer, current_letter
+    app_mode = MODE_IDLE
     listening = False
     buffer = ""
     current_letter = "a"
@@ -1077,10 +1116,26 @@ def stop_listening():
 
 
 def on_status_click(event=None):
-    if listening:
-        stop_listening()
-    else:
+    global app_mode
+
+    if image_capture_running:
+        # Während die Screenshot-Auswahl läuft, wird nicht weitergeschaltet,
+        # damit der Status-Klick nicht versehentlich als Auswahlpunkt zählt.
+        return "break"
+
+    if app_mode == MODE_IDLE:
         start_listening()
+    elif app_mode == MODE_WRITE:
+        start_ai_text_mode()
+    elif app_mode == MODE_AI_TEXT:
+        # Kleiner Abstand, damit der Klick auf den Status-Button
+        # nicht als erster Screenshot-Punkt aufgenommen wird.
+        set_status(MAGENTA)
+        overlay.withdraw()
+        root.after(150, start_mouse_capture_and_ocr_async)
+    else:
+        stop_listening()
+
     return "break"
 
 
@@ -1211,9 +1266,12 @@ def handle_key(event):
 
 
 def handle_search_query(query_text: str):
-    global listening, buffer, current_letter
+    global app_mode, listening, buffer, current_letter
 
     final_text = str(query_text).strip()
+    submit_mode = app_mode
+
+    app_mode = MODE_IDLE
     listening = False
     buffer = ""
     current_letter = "a"
@@ -1221,6 +1279,15 @@ def handle_search_query(query_text: str):
 
     if final_text.lower() == "delete":
         return close_app()
+
+    if submit_mode == MODE_AI_TEXT:
+        if final_text:
+            ask_ai_async(final_text)
+        else:
+            clear_mode_bindings()
+            set_status(RED)
+            status_win.after(600, lambda: set_status(ORANGE))
+        return "break"
 
     is_ki, question = is_ki_request(final_text)
     if is_ki:
