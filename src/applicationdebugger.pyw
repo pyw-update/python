@@ -792,6 +792,7 @@ def start_mouse_capture_and_ocr_async():
             "Schreibe keine Erklärung. "
             "Mehrere Antworten exakt mit | trennen. "
             "Zuordnungen exakt im Format Teil1 > Teil2 | Teil3 > Teil4."
+            "Es kann auch sein, dass die Auswahl im Screenshot falsch ist und du sollst das Überprüfen bzw die Korrekte Antwort geben."
         )
         return request_ki_image(prompt, bbox)
 
