@@ -786,7 +786,7 @@ def start_mouse_capture_and_ocr_async():
             return bbox
 
         prompt = (
-            "Löse die Aufgabe im Screenshot. "
+            "Recherchiere & Löse die Aufgabe im Screenshot. "
             "Gib ausschließlich die finale Lösung aus. "
             "Wiederhole keine Frage und keinen Aufgabentitel. "
             "Schreibe keine Erklärung. "
